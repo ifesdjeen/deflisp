@@ -1,14 +1,11 @@
-# iknow
+# DefLisp
 
-TODO: Write description here
-
-## Installation
-
-TODO: Write installation instructions here
+Everyone should implement his own Lisp. I'm not an exception. I'm doing it
+just for learning and fun. Don't excpect anything extraordinary here.
 
 ## Usage
 
-TODO: Write usage instructions here
+Try avoiding using it
 
 ## How to run tests
 
@@ -18,4 +15,6 @@ cabal configure --enable-tests && cabal build && cabal test
 
 ## Contributing
 
-TODO: Write contribution instructions here
+Copyright (c) Alex Petrov
+
+Double licensed under the Eclipse Public License or the Apache Public License 2.0.
