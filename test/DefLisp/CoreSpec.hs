@@ -1,4 +1,4 @@
-module IKnow.CoreSpec (main, spec) where
+module DefLisp.CoreSpec (main, spec) where
 
 import Test.Hspec
 

@@ -1,4 +1,4 @@
-Name:                   iknow
+Name:                   deflisp
 Version:                0.0.0
 Author:                 Alex P<alex@clojurewerkz.org>
 Maintainer:             Alex P<alex@clojurewerkz.org>
@@ -13,8 +13,8 @@ Library
   Default-Language:     Haskell2010
   HS-Source-Dirs:       src
   GHC-Options:          -Wall
-  Exposed-Modules:      IKnow.Core
-  Other-Modules:        IKnow.Core.Internal
+  Exposed-Modules:      DefLisp.Core
+  Other-Modules:        DefLisp.Core.Internal
   Build-Depends:        base >= 4 && < 5, parsec >3, mtl >2.1, containers >0.5
 
 Test-Suite spec

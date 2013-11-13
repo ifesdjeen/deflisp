@@ -1,4 +1,4 @@
-module IKnow.Core.Types where
+module DefLisp.Core.Types where
 
 import qualified Data.Map as Map
 
