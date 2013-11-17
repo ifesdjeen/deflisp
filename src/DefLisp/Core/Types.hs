@@ -28,8 +28,12 @@ instance Error LispError where
 
 -- type LispResult = StateT Context LispError LispExpression
 
+data ReservedKeyword = DefKeyword |
+                       IfKeyword
+                     deriving (Show, Eq)
 
 data LispExpression = LispSymbol String |
+                      ReservedKeyword ReservedKeyword |
                       LispList [LispExpression] |
                       LispNumber Integer |
                       LispString String |
@@ -59,6 +63,7 @@ instance LispLiteral Integer where
   toSexp n = LispNumber n
 
 instance LispLiteral [Char] where
+  toSexp "def" = ReservedKeyword DefKeyword
   toSexp n = LispSymbol n
 
 instance LispLiteral Bool where

@@ -13,11 +13,17 @@ spaces_ = skipMany1 space
 parseString :: Parser LispExpression
 parseString = do _ <- char '"'
                  x <- many (noneOf "\"")
-                 _ <-char '"'
+                 _ <- char '"'
                  return $ LispString x
 
 parseNumber :: Parser LispExpression
 parseNumber = fmap (LispNumber . read) $ many digit
+
+parseReserved :: Parser LispExpression
+parseReserved = do
+  res <-  string "def" <|>
+          string "if"
+  return $ toSexp res
 
 parseSymbol :: Parser LispExpression
 parseSymbol = do
@@ -34,10 +40,11 @@ parseList = do
   return $ LispList x
 
 parseLispExpression :: Parser LispExpression
-parseLispExpression = parseSymbol
-                  <|> parseString
-                  <|> parseList
-                  <|> parseNumber
+parseLispExpression = parseReserved <|>
+                      parseSymbol <|>
+                      parseString <|>
+                      parseList <|>
+                      parseNumber
 
 readExpression :: String -> LispExpression
 readExpression input = case (parse parseLispExpression "lisp" input) of

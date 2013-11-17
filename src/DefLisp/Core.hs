@@ -64,35 +64,14 @@ eval env val@(LispSymbol sym) = do
   let b = fromJust a
   return b
 
-eval envRef (LispList[LispSymbol "def", LispSymbol var, form]) =
+eval envRef (LispList[(ReservedKeyword DefKeyword), LispSymbol var, form]) =
   eval envRef form >>= defineVar envRef (toSexp var)
-
 
 eval envRef (LispList (LispSymbol func: args)) =
   mapM (eval envRef) args >>= builtInOp func
 
 eval _ val@(LispNumber _) = return val
 eval _ val@(LispBool _) = return val
-
-t :: String -> IO LispEnvironment
-t exp = do
-  -- ht <- freshEnv
-  ht <- H.new
-
-  let sym = mklSymbol "sym"
-      num = mklNumber 1
-      read = readExpression exp
-      evaled = eval ht read
-  --defineVar ht sym num
-  --lookedup <- findVar ht sym
-  --print $ (fromJust lookedup)
-  s <- liftM show evaled
-  lookedup <- findVar ht sym
-  print $ (fromJust lookedup)
-  -- print s
-
-
-  return ht
 
 evalAndPrint :: LispEnvironment -> String -> IO ()
 evalAndPrint envRef expr = do
