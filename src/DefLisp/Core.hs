@@ -6,7 +6,7 @@ import DefLisp.Core.Parser
 
 import Text.ParserCombinators.Parsec
 
-import Data.IORef
+import System.IO
 import Control.Monad.Error
 -- import Debug.Trace
 
@@ -23,19 +23,15 @@ type Environment k v = H.BasicHashTable k v
 type LispEnvironment = (Environment LispExpression LispExpression)
 
 freshEnv :: IO LispEnvironment
-freshEnv = do
-   env <- H.new
-   return env
+freshEnv = H.new
 
 defineVar :: LispEnvironment -> LispExpression -> LispExpression -> IO (LispExpression)
 defineVar env symbol expr = do
   H.insert env symbol expr
   return symbol
 
-findVar :: Environment LispExpression LispExpression -> LispExpression -> IO (Maybe LispExpression)
-findVar env symbol = do
-  res <- H.lookup env symbol
-  return res
+findVar :: LispEnvironment -> LispExpression -> IO (Maybe LispExpression)
+findVar env symbol = H.lookup env symbol
 
 -- bar :: IO (HashTable Int Int) ->
 
@@ -58,17 +54,19 @@ builtInOp "-" args = return $ numericOp (-) args
 builtInOp "*" args = return $ numericOp (*) args
 builtInOp "/" args = return $ numericOp (div) args
 
+liftVarToIO :: LispExpression -> IO LispExpression
+liftVarToIO a = return $ a
+
 eval :: LispEnvironment -> LispExpression -> IO LispExpression
 eval _ val@(LispString _) = return val
-eval _ val@(LispSymbol _) = return val
+eval env val@(LispSymbol sym) = do
+  a <- findVar env (toSexp sym)
+  let b = fromJust a
+  return b
 
 eval envRef (LispList[LispSymbol "def", LispSymbol var, form]) =
--- eval envRef form >>= defineVar envRef var
   eval envRef form >>= defineVar envRef (toSexp var)
--- defineVar envRef var form
 
--- eval env (List [Atom "define", Atom var, form]) =
---     eval env form >>= defineVar env var
 
 eval envRef (LispList (LispSymbol func: args)) =
   mapM (eval envRef) args >>= builtInOp func
@@ -76,13 +74,11 @@ eval envRef (LispList (LispSymbol func: args)) =
 eval _ val@(LispNumber _) = return val
 eval _ val@(LispBool _) = return val
 
--- evalExpression :: String -> String
--- (eval . readExpression) "(+ 1 1)"
-
 t :: String -> IO LispEnvironment
 t exp = do
   -- ht <- freshEnv
   ht <- H.new
+
   let sym = mklSymbol "sym"
       num = mklNumber 1
       read = readExpression exp
@@ -93,7 +89,30 @@ t exp = do
   s <- liftM show evaled
   lookedup <- findVar ht sym
   print $ (fromJust lookedup)
-  print s
+  -- print s
 
 
   return ht
+
+evalAndPrint :: LispEnvironment -> String -> IO ()
+evalAndPrint envRef expr = do
+  let read = readExpression expr
+      evaled = eval envRef read
+  s <- liftM show evaled
+  print s
+
+repl :: IO ()
+repl = freshEnv >>= untilM (== "quit") (readPrompt "Lisp>>> ") . evalAndPrint
+
+readPrompt :: String -> IO String
+readPrompt prompt = flushStr prompt >> getLine
+
+flushStr :: String -> IO ()
+flushStr str = putStr str >> hFlush stdout
+
+untilM :: Monad m => (a -> Bool) -> m a -> (a -> m ()) -> m ()
+untilM pred prompt action = do
+  result <- prompt
+  if pred result
+     then return ()
+     else action result >> untilM pred prompt action
