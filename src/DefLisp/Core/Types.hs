@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
 
-module DefLisp.Core.Types where
+module Deflisp.Core.Types where
 
 import GHC.Generics (Generic)
 import qualified Data.Map as Map
@@ -29,16 +29,21 @@ instance Error LispError where
 -- type LispResult = StateT Context LispError LispExpression
 
 data ReservedKeyword = DefKeyword |
+                       FnKeyword |
                        IfKeyword
                      deriving (Show, Eq)
 
 data LispExpression = LispSymbol String |
                       ReservedKeyword ReservedKeyword |
                       LispList [LispExpression] |
+                      LispVector [LispExpression] |
                       LispNumber Integer |
                       LispString String |
-                      LispBool Bool
-                      deriving (Show, Eq, Generic)
+                      LispBool Bool |
+                      LispFunction [LispExpression] LispExpression
+                    deriving (Show, Eq, Generic)
+
+-- LispFunction (LispVector [LispSymbol "a", LispSymbol "a"]) (LispNumber 1)
 
 instance Hashable LispExpression where
   hashWithSalt s (LispSymbol n) = s `hashWithSalt`
@@ -64,13 +69,11 @@ instance LispLiteral Integer where
 
 instance LispLiteral [Char] where
   toSexp "def" = ReservedKeyword DefKeyword
+  toSexp "fn" = ReservedKeyword FnKeyword
   toSexp n = LispSymbol n
 
 instance LispLiteral Bool where
   toSexp n = LispBool n
-
-instance LispLiteral [Integer] where
-  toSexp n = LispList $ map toSexp n
 
 mklList :: [Integer] -> LispExpression
 mklList a = LispList $ map toSexp a

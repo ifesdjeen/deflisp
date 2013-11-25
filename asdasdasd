@@ -1,0 +1,24 @@
+findPersonById     =>>>> Person | Nothing
+getTitle
+
+
+
+getPersonTitle
+
+
+
+if person = findPersonById
+  person.title
+end
+
+
+
+
+
+findPersonById :: Int -> Maybe(Person)
+getTitle :: Maybe(Person) -> Maybe(String)
+
+
+
+
+data Maybe a = Nothing | Just a

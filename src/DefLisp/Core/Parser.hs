@@ -1,11 +1,16 @@
-module DefLisp.Core.Parser (readExpression) where
+module Deflisp.Core.Parser (readExpression) where
 
-import DefLisp.Core.Types
+import System.IO
+
+import Deflisp.Core.Types
+import Control.Monad.Error
 
 import Text.ParserCombinators.Parsec
+import qualified Text.Parsec.Token as P
+import Text.Parsec.Language
 
 symbols :: Parser Char
-symbols = oneOf "!#$%&|*+-/:<=>?@^_~"
+symbols = oneOf "!#$%&|*+/:<=>?@^_~"
 
 spaces_ :: Parser ()
 spaces_ = skipMany1 space
@@ -17,12 +22,21 @@ parseString = do _ <- char '"'
                  return $ LispString x
 
 parseNumber :: Parser LispExpression
-parseNumber = fmap (LispNumber . read) $ many digit
+--parseNumber = liftM (LispNumber . read) $ many digit
+--parseNumber = liftM (Number . read) $ many1 digit
+parseNumber = do
+  _ <- try (many (string "#d"))
+  sign <- many (oneOf "-")
+  num <- many1 (digit)
+  if (length sign) > 1
+     then pzero
+     else return $ (LispNumber . read) $ sign ++ num
 
 parseReserved :: Parser LispExpression
 parseReserved = do
   res <-  string "def" <|>
-          string "if"
+          string "if"  <|>
+          string "fn"
   return $ toSexp res
 
 parseSymbol :: Parser LispExpression
@@ -33,20 +47,41 @@ parseSymbol = do
   return $ LispSymbol symbol
 
 parseList :: Parser LispExpression
-parseList = do
-  _ <- char '('
-  x <- parseLispExpression `sepEndBy` (many1 space)
-  _ <- char ')'
-  return $ LispList x
+parseList = liftM LispList $ sepBy parseLispExpression whiteSpace
+
+parseVector :: Parser LispExpression
+parseVector = liftM LispVector $ sepBy parseLispExpression whiteSpace
 
 parseLispExpression :: Parser LispExpression
 parseLispExpression = parseReserved <|>
                       parseSymbol <|>
+                      lexeme parseNumber <|>
                       parseString <|>
-                      parseList <|>
-                      parseNumber
+                      parens parseList <|>
+                      brackets parseVector  --  <|>
+                      -- <?> "Expression"
 
 readExpression :: String -> LispExpression
 readExpression input = case (parse parseLispExpression "lisp" input) of
   Left err -> LispString $ "No match: " ++ show err
   Right x -> x
+
+
+lispDef :: LanguageDef ()
+lispDef
+  = emptyDef
+  { P.commentLine    = ";"
+  , P.identStart     = letter <|> symbols
+  , P.identLetter    = letter <|> digit <|> symbols
+  , P.reservedNames  = []
+  , P.caseSensitive  = True
+  }
+
+--lexer :: P.GenTokenParser String () Identity
+lexer = P.makeTokenParser lispDef
+
+parens = P.parens lexer
+brackets = P.brackets lexer
+whiteSpace = P.whiteSpace lexer
+
+lexeme = P.lexeme lexer

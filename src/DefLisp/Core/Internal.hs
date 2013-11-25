@@ -1,1 +1,1 @@
-module DefLisp.Core.Internal () where
+module Deflisp.Core.Internal () where
