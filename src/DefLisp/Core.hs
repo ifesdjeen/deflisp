@@ -14,7 +14,7 @@ import qualified Data.HashTable.IO as H
 type IOThrowsError = ErrorT LispError IO
 
 fromJust :: Maybe a -> a
-fromJust Nothing = error "Maybe.fromJust: Nothing"
+fromJust Nothing = error "Maybe.fromJust: Nothing YOYO"
 fromJust (Just x) = x
 
 type Environment k v = H.BasicHashTable k v
@@ -36,6 +36,13 @@ defineVars env bindings = do
   where addBinding e (var, value) = do
           H.insert e var value
           return var
+
+
+findVarMaybe :: Maybe LispEnvironment -> LispExpression -> IO (Maybe LispExpression)
+findVarMaybe env symbol =
+  case env of
+    (Just x) -> H.lookup x symbol
+    Nothing -> return Nothing
 
 
 findVar :: LispEnvironment -> LispExpression -> IO (Maybe LispExpression)
@@ -75,52 +82,87 @@ eval :: LispEnvironment -> Maybe LispEnvironment -> LispExpression -> IO LispExp
 eval _ _ val@(LispString _) = return val
 
 -- TODO do replacing of vars
-eval env closure val@(LispSymbol sym) = do
-  a <- findVar env (toSexp sym)
-  let b = fromJust a
-  return b
+eval env maybeClosure val@(LispSymbol sym) = do
+  let s = (toSexp sym)
+  --- WHY?
+  a <- (liftM2 mplus) (findVarMaybe maybeClosure s) (findVar env s)
+  --a <- (liftIO Nothing) `mplus` (findVar env s)
+  --a <- (findVar env s)
+  flushStr $ show maybeClosure
+  -- flushStr $ show (findVarMaybe maybeClosure s)
+  -- flushStr $ show b
+  -- a <- case maybeClosure of
+  --   (Just cls) -> case (findVar cls (toSexp sym)) of
+  -- Nothing -> error "asd"
+  --return $ fromJust a
+  return $ fromJust a
 
-eval env closure (LispList[(ReservedKeyword DefKeyword), LispSymbol var, form]) =
-  eval env closure form >>= defineVar env (toSexp var)
 
+
+-- eval env closure val@(LispSymbol sym) = do
+--   a <- findVar env (toSexp sym)
+--   let b = fromJust a
+--   return b
+
+-- Defines a variable
+eval env closure (LispList[(ReservedKeyword DefKeyword), LispSymbol var, form]) = do
+  res <- eval env closure form
+  _ <- defineVar env (toSexp var) res
+  flushStr $ show res
+  return res
+
+-- Creates a function
 eval envRef closure (LispList[(ReservedKeyword FnKeyword), LispVector bindings, form]) = do
   hFlush stdout
+  --- TODO: add closure enclosing to function creation!!! Currently state is lost.
   return $ LispFunction bindings form
 
+-- Evaluates a raw function, without binding
 eval envRef closure (LispList ((LispFunction bindings form) : args)) = do
   let zipped = zip bindings args
-  _ <- defineVars envRef zipped
-  res <- eval envRef closure form
+  e <- case closure of
+        (Just x) -> return x
+        Nothing -> freshEnv
+  _ <- defineVars e zipped
+  res <- eval envRef (Just e) form
   return $ res
+  -- Why on earth wouldn't that work?....
+  -- where enclosedEnv = case closure of
+  --         (Just x) -> closure
+  --          Nothing -> maybe $ join freshEnv
+
 
 eval envRef _ (LispList [(LispSymbol "quote"), val]) = return val
 
-eval envRef _ (LispList (LispSymbol func: args)) = do
+eval envRef closure (LispList (LispSymbol func: args)) = do
   lookup <- findVar envRef (toSexp func)
   res <- case lookup of
-    (Just x) -> evalFn envRef x args
-    Nothing  -> evalBuiltin envRef (toSexp func) args
+    (Just x) -> evalFn envRef closure x args
+    Nothing  -> evalBuiltin envRef closure (toSexp func) args
   return res
 
 
 eval env closure (LispList x) = do
-  let enclosed = eval env closure
-  y <- mapM enclosed x
-  z <- enclosed (LispList y)
+  -- let enclosed = eval env closure
+  y <- mapM (eval env closure) x
+  z <- eval env closure (LispList y)
   return $ z
 
 eval _ _ val@(LispNumber _) = return val
 eval _ _ val@(LispBool _) = return val
 
-evalBuiltin :: LispEnvironment -> LispExpression -> [LispExpression] -> IO LispExpression
-evalBuiltin envRef (LispSymbol func) args =
-  mapM (eval envRef Nothing) args >>= builtInOp func
+evalBuiltin :: LispEnvironment -> Maybe LispEnvironment ->LispExpression -> [LispExpression] -> IO LispExpression
+evalBuiltin envRef closure (LispSymbol func) args =
+  mapM (eval envRef closure) args >>= builtInOp func
 
-evalFn :: LispEnvironment -> LispExpression -> [LispExpression] -> IO LispExpression
-evalFn envRef (LispFunction bindings form) args = do
+evalFn :: LispEnvironment -> Maybe LispEnvironment -> LispExpression -> [LispExpression] -> IO LispExpression
+evalFn envRef closure (LispFunction bindings form) args = do
   let zipped = zip bindings args
-  _ <- defineVars envRef zipped
-  res <- eval envRef Nothing form
+  e <- case closure of
+    (Just x) -> return x
+    Nothing -> freshEnv
+  _ <- defineVars e zipped
+  res <- eval envRef (Just e) form
   return $ res
 
 evalAndPrint :: LispEnvironment -> String -> IO ()
@@ -148,3 +190,11 @@ untilM pred prompt action = do
      else action result >> untilM pred prompt action
 
 -- readExpression "(fn [a b] (+ a b))"
+
+
+-- (def b 100)
+-- (def a (fn [b c] (+ b c)))
+-- (a 5 7)
+
+--  Nothing `mplus` Nothing `mplus` Just 1 `mplus` Just 2
+-- First foldMap [Nothing, Nothing, Just 1, Just 2]
