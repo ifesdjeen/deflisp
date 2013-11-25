@@ -86,23 +86,7 @@ eval env maybeClosure val@(LispSymbol sym) = do
   let s = (toSexp sym)
   --- WHY?
   a <- (liftM2 mplus) (findVarMaybe maybeClosure s) (findVar env s)
-  --a <- (liftIO Nothing) `mplus` (findVar env s)
-  --a <- (findVar env s)
-  flushStr $ show maybeClosure
-  -- flushStr $ show (findVarMaybe maybeClosure s)
-  -- flushStr $ show b
-  -- a <- case maybeClosure of
-  --   (Just cls) -> case (findVar cls (toSexp sym)) of
-  -- Nothing -> error "asd"
-  --return $ fromJust a
   return $ fromJust a
-
-
-
--- eval env closure val@(LispSymbol sym) = do
---   a <- findVar env (toSexp sym)
---   let b = fromJust a
---   return b
 
 -- Defines a variable
 eval env closure (LispList[(ReservedKeyword DefKeyword), LispSymbol var, form]) = do
