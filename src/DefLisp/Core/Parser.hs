@@ -1,7 +1,5 @@
 module Deflisp.Core.Parser (readExpression) where
 
-import System.IO
-
 import Deflisp.Core.Types
 import Control.Monad.Error
 
@@ -12,8 +10,8 @@ import Text.Parsec.Language
 symbols :: Parser Char
 symbols = oneOf "!#$%&|*+/:<=>?@^_~"
 
-spaces_ :: Parser ()
-spaces_ = skipMany1 space
+-- spaces_ :: Parser ()
+-- spaces_ = skipMany1 space
 
 parseString :: Parser LispExpression
 parseString = do _ <- char '"'
@@ -34,10 +32,20 @@ parseNumber = do
 
 parseReserved :: Parser LispExpression
 parseReserved = do
-  res <-  string "def" <|>
-          string "if"  <|>
-          string "fn"
+  res <- try (string "def") <|>
+         try (string "if")  <|>
+         try (string "fn")
   return $ toSexp res
+
+parseTrue :: Parser LispExpression
+parseTrue = do
+  res <- try (string "true")
+  return $ LispBool True
+
+parseFalse :: Parser LispExpression
+parseFalse = do
+  res <- try (string "false")
+  return $ LispBool False
 
 parseSymbol :: Parser LispExpression
 parseSymbol = do
@@ -53,7 +61,9 @@ parseVector :: Parser LispExpression
 parseVector = liftM LispVector $ sepBy parseLispExpression whiteSpace
 
 parseLispExpression :: Parser LispExpression
-parseLispExpression = parseReserved <|>
+parseLispExpression = try parseReserved <|>
+                      parseTrue <|>
+                      parseFalse <|>
                       parseSymbol <|>
                       lexeme parseNumber <|>
                       parseString <|>

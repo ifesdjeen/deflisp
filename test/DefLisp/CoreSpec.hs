@@ -2,6 +2,7 @@ module Deflisp.CoreSpec (main, spec) where
 
 import Test.Hspec
 
+import Deflisp.Core.Show
 import Deflisp.Core.Types
 import Deflisp.Core.Parser
 

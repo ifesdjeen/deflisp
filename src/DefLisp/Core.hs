@@ -1,13 +1,13 @@
 module Deflisp.Core where
 
-import Data.List
+-- import Data.List
 import Deflisp.Core.Types
 import Deflisp.Core.Show
 import Deflisp.Core.Parser
 
 import System.IO
 import Control.Monad.Error
--- import Debug.Trace
+import Debug.Trace
 
 import qualified Data.HashTable.IO as H
 
@@ -31,11 +31,12 @@ defineVar env symbol expr = do
 
 defineVars :: LispEnvironment -> [(LispExpression, LispExpression)] -> IO (LispExpression)
 defineVars env bindings = do
-  mapM (addBinding env) bindings
+  void $ mapM (addBinding env) bindings
   return $ LispNumber 1
   where addBinding e (var, value) = do
           H.insert e var value
           return var
+
 
 
 findVarMaybe :: Maybe LispEnvironment -> LispExpression -> IO (Maybe LispExpression)
@@ -43,7 +44,6 @@ findVarMaybe env symbol =
   case env of
     (Just x) -> H.lookup x symbol
     Nothing -> return Nothing
-
 
 findVar :: LispEnvironment -> LispExpression -> IO (Maybe LispExpression)
 findVar env symbol = H.lookup env symbol
@@ -54,6 +54,7 @@ unpackNum :: LispExpression -> Integer
 unpackNum (LispNumber n) = n
 unpackNum (LispList [n]) = unpackNum n
 unpackNum (LispString s) = read s :: Integer
+unpackNum nan = error $ "Can't unpack number: " ++ (show nan)
 
 length_ :: [LispExpression] -> Int
 length_ x = length x
@@ -63,6 +64,7 @@ length_ x = length x
 
 --
 -- Numerical Operations
+
 --
 
 numericOp :: (Integer -> Integer -> Integer) -> [LispExpression] -> LispExpression
@@ -74,17 +76,32 @@ builtInOp "+" args = return $ numericOp (+) args
 builtInOp "-" args = return $ numericOp (-) args
 builtInOp "*" args = return $ numericOp (*) args
 builtInOp "/" args = return $ numericOp (div) args
+builtInOp "=" args = return $ LispBool $ and $ map (== head args) (tail args)
+
+builtInOp "first" [list] = return $ lfirst list
+builtInOp "next" [list] = return $ next list
+builtInOp "last" [list] = return $ llast list
+builtInOp "conj" [list, el] = return $ conj list el
+builtInOp "cons" [el, list] = return $ cons el list
 
 liftVarToIO :: LispExpression -> IO LispExpression
 liftVarToIO a = return $ a
 
 eval :: LispEnvironment -> Maybe LispEnvironment -> LispExpression -> IO LispExpression
+
+eval _ _ c | trace ("eval " ++ show c) False = undefined
+
 eval _ _ val@(LispString _) = return val
+
+eval _ _ val@(LispNumber _) = return val
+
+eval _ _ val@(LispBool _) = return val
 
 -- TODO do replacing of vars
 eval env maybeClosure val@(LispSymbol sym) = do
   let s = (toSexp sym)
   --- WHY?
+  --a <- (findVarMaybe maybeClosure s) `mplus` (findVar env s)
   a <- (liftM2 mplus) (findVarMaybe maybeClosure s) (findVar env s)
   return $ fromJust a
 
@@ -92,14 +109,26 @@ eval env maybeClosure val@(LispSymbol sym) = do
 eval env closure (LispList[(ReservedKeyword DefKeyword), LispSymbol var, form]) = do
   res <- eval env closure form
   _ <- defineVar env (toSexp var) res
-  flushStr $ show res
   return res
 
 -- Creates a function
-eval envRef closure (LispList[(ReservedKeyword FnKeyword), LispVector bindings, form]) = do
-  hFlush stdout
+eval _ _ (LispList[(ReservedKeyword FnKeyword), LispVector bindings, form]) = do
   --- TODO: add closure enclosing to function creation!!! Currently state is lost.
   return $ LispFunction bindings form
+
+-- eval env closure (LispList[(ReservedKeyword IfKeyword), testExpression,
+--                            truthyExpression, falsyExpression]) | trace ("here" ) False = undefined
+
+eval env closure (LispList[(ReservedKeyword IfKeyword), testExpression,
+                           truthyExpression, falsyExpression]) = do
+  test <- (eval env closure testExpression)
+  res <- if (isTrue test)
+         then (eval env closure truthyExpression)
+         else (eval env closure falsyExpression)
+  return res
+
+
+
 
 -- Evaluates a raw function, without binding
 eval envRef closure (LispList ((LispFunction bindings form) : args)) = do
@@ -110,19 +139,22 @@ eval envRef closure (LispList ((LispFunction bindings form) : args)) = do
   _ <- defineVars e zipped
   res <- eval envRef (Just e) form
   return $ res
-  -- Why on earth wouldn't that work?....
+  -- Why on earth wouldn't that work?.... So that one should work, te
   -- where enclosedEnv = case closure of
   --         (Just x) -> closure
   --          Nothing -> maybe $ join freshEnv
 
 
-eval envRef _ (LispList [(LispSymbol "quote"), val]) = return val
+eval _ _ (LispList [(LispSymbol "quote"), val]) = return val
 
 eval envRef closure (LispList (LispSymbol func: args)) = do
-  lookup <- findVar envRef (toSexp func)
-  res <- case lookup of
-    (Just x) -> evalFn envRef closure x args
-    Nothing  -> evalBuiltin envRef closure (toSexp func) args
+  -- lookup_ <- findVar envRef (toSexp func)
+  let func_ = (toSexp func)
+  lookup_ <- (liftM2 mplus) (findVarMaybe closure func_) (findVar envRef func_)
+  evaledArgs <- mapM (eval envRef closure) args
+  res <- case lookup_ of
+    (Just x) -> evalFn envRef closure x evaledArgs
+    Nothing  -> builtInOp func evaledArgs
   return res
 
 
@@ -134,10 +166,6 @@ eval env closure (LispList x) = do
 
 eval _ _ val@(LispNumber _) = return val
 eval _ _ val@(LispBool _) = return val
-
-evalBuiltin :: LispEnvironment -> Maybe LispEnvironment ->LispExpression -> [LispExpression] -> IO LispExpression
-evalBuiltin envRef closure (LispSymbol func) args =
-  mapM (eval envRef closure) args >>= builtInOp func
 
 evalFn :: LispEnvironment -> Maybe LispEnvironment -> LispExpression -> [LispExpression] -> IO LispExpression
 evalFn envRef closure (LispFunction bindings form) args = do
@@ -167,11 +195,11 @@ flushStr :: String -> IO ()
 flushStr str = putStr str >> hFlush stdout
 
 untilM :: Monad m => (a -> Bool) -> m a -> (a -> m ()) -> m ()
-untilM pred prompt action = do
+untilM pred_ prompt action = do
   result <- prompt
-  if pred result
+  if pred_ result
      then return ()
-     else action result >> untilM pred prompt action
+     else action result >> untilM pred_ prompt action
 
 -- readExpression "(fn [a b] (+ a b))"
 
@@ -182,3 +210,9 @@ untilM pred prompt action = do
 
 --  Nothing `mplus` Nothing `mplus` Just 1 `mplus` Just 2
 -- First foldMap [Nothing, Nothing, Just 1, Just 2]
+
+(def empty? (fn [a] (= a (quote ()))))
+(def inc (fn [b] (+ b 1)))
+(def map (fn [f coll] (if (empty? coll) (quote ()) (cons (f (first coll)) (map f (next coll))))))
+
+-- ((fn [f sm] (f sm)) (fn [b] (+ b 1)))
