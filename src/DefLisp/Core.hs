@@ -21,8 +21,30 @@ type Environment k v = H.BasicHashTable k v
 
 type LispEnvironment = (Environment LispExpression LispExpression)
 
+fnFromString :: String -> LispExpression
+fnFromString expression = case (readExpression expression) of
+  (LispList[(ReservedKeyword FnKeyword), LispVector bindings, form]) -> LispFunction $ UserFunction bindings form
+  _ -> error ""
+
 freshEnv :: IO LispEnvironment
-freshEnv = H.new
+freshEnv = do
+  env <- H.new
+  void $ defineVar env (LispSymbol "+") (LispFunction $ LibraryFunction "+" (builtInOp "+"))
+  void $ defineVar env (LispSymbol "-") (LispFunction $ LibraryFunction "-" (builtInOp "-"))
+  void $ defineVar env (LispSymbol "*") (LispFunction $ LibraryFunction "*" (builtInOp "*"))
+  void $ defineVar env (LispSymbol "/") (LispFunction $ LibraryFunction "/" (builtInOp "/"))
+  void $ defineVar env (LispSymbol "first") (LispFunction $ LibraryFunction "first" (builtInOp "first"))
+  void $ defineVar env (LispSymbol "next") (LispFunction $ LibraryFunction "next" (builtInOp "next"))
+  void $ defineVar env (LispSymbol "last") (LispFunction $ LibraryFunction "last" (builtInOp "last"))
+  void $ defineVar env (LispSymbol "conj") (LispFunction $ LibraryFunction "conj" (builtInOp "conj"))
+  void $ defineVar env (LispSymbol "cons") (LispFunction $ LibraryFunction "cons" (builtInOp "cons"))
+  void $ defineVar env (LispSymbol "=") (LispFunction $ LibraryFunction "+" (builtInOp "="))
+  void $ defineVar env (LispSymbol "empty?") (fnFromString "(fn [a] (= a (quote ())))")
+  void $ defineVar env (LispSymbol "inc") (fnFromString "(fn [b] (+ b 1))")
+  void $ defineVar env (LispSymbol "map") (fnFromString "(fn [f coll] (if (empty? coll) (quote ()) (cons (f (first coll)) (map f (next coll)))))")
+  void $ defineVar env (LispSymbol "reduce") (fnFromString "(fn [f coll acc] (if (empty? coll) acc (reduce f (next coll) (f acc (first coll)))))")
+  return env
+
 
 defineVar :: LispEnvironment -> LispExpression -> LispExpression -> IO (LispExpression)
 defineVar env symbol expr = do
@@ -70,19 +92,19 @@ length_ x = length x
 numericOp :: (Integer -> Integer -> Integer) -> [LispExpression] -> LispExpression
 numericOp op args = LispNumber $ foldl1 op $ map unpackNum args
 
-builtInOp :: String -> [LispExpression] -> IO LispExpression
+builtInOp :: String -> [LispExpression] -> LispExpression
 -- builtInOp "+" args | trace(show $ foldl1 (+) $ map unpackNum args) False = undefined
-builtInOp "+" args = return $ numericOp (+) args
-builtInOp "-" args = return $ numericOp (-) args
-builtInOp "*" args = return $ numericOp (*) args
-builtInOp "/" args = return $ numericOp (div) args
-builtInOp "=" args = return $ LispBool $ and $ map (== head args) (tail args)
+builtInOp "+" args = numericOp (+) args
+builtInOp "-" args = numericOp (-) args
+builtInOp "*" args = numericOp (*) args
+builtInOp "/" args = numericOp (div) args
+builtInOp "=" args = LispBool $ and $ map (== head args) (tail args)
 
-builtInOp "first" [list] = return $ lfirst list
-builtInOp "next" [list] = return $ next list
-builtInOp "last" [list] = return $ llast list
-builtInOp "conj" [list, el] = return $ conj list el
-builtInOp "cons" [el, list] = return $ cons el list
+builtInOp "first" [list] = lfirst list
+builtInOp "next" [list] = next list
+builtInOp "last" [list] = llast list
+builtInOp "conj" [list, el] = conj list el
+builtInOp "cons" [el, list] = cons el list
 
 liftVarToIO :: LispExpression -> IO LispExpression
 liftVarToIO a = return $ a
@@ -114,7 +136,7 @@ eval env closure (LispList[(ReservedKeyword DefKeyword), LispSymbol var, form]) 
 -- Creates a function
 eval _ _ (LispList[(ReservedKeyword FnKeyword), LispVector bindings, form]) = do
   --- TODO: add closure enclosing to function creation!!! Currently state is lost.
-  return $ LispFunction bindings form
+  return $ LispFunction $ UserFunction bindings form
 
 -- eval env closure (LispList[(ReservedKeyword IfKeyword), testExpression,
 --                            truthyExpression, falsyExpression]) | trace ("here" ) False = undefined
@@ -131,7 +153,7 @@ eval env closure (LispList[(ReservedKeyword IfKeyword), testExpression,
 
 
 -- Evaluates a raw function, without binding
-eval envRef closure (LispList ((LispFunction bindings form) : args)) = do
+eval envRef closure (LispList ((LispFunction (UserFunction bindings form)) : args)) = do
   let zipped = zip bindings args
   e <- case closure of
         (Just x) -> return x
@@ -154,7 +176,8 @@ eval envRef closure (LispList (LispSymbol func: args)) = do
   evaledArgs <- mapM (eval envRef closure) args
   res <- case lookup_ of
     (Just x) -> evalFn envRef closure x evaledArgs
-    Nothing  -> builtInOp func evaledArgs
+    Nothing  -> error "No such function"
+                -- return $ builtInOp func evaledArgs
   return res
 
 
@@ -168,7 +191,7 @@ eval _ _ val@(LispNumber _) = return val
 eval _ _ val@(LispBool _) = return val
 
 evalFn :: LispEnvironment -> Maybe LispEnvironment -> LispExpression -> [LispExpression] -> IO LispExpression
-evalFn envRef closure (LispFunction bindings form) args = do
+evalFn envRef closure (LispFunction (UserFunction bindings form)) args = do
   let zipped = zip bindings args
   e <- case closure of
     (Just x) -> return x
@@ -176,6 +199,9 @@ evalFn envRef closure (LispFunction bindings form) args = do
   _ <- defineVars e zipped
   res <- eval envRef (Just e) form
   return $ res
+
+evalFn envRef closure (LispFunction (LibraryFunction _ native)) args = return $ native args
+
 
 evalAndPrint :: LispEnvironment -> String -> IO ()
 evalAndPrint envRef expr = do
@@ -202,17 +228,3 @@ untilM pred_ prompt action = do
      else action result >> untilM pred_ prompt action
 
 -- readExpression "(fn [a b] (+ a b))"
-
-
--- (def b 100)
--- (def a (fn [b c] (+ b c)))
--- (a 5 7)
-
---  Nothing `mplus` Nothing `mplus` Just 1 `mplus` Just 2
--- First foldMap [Nothing, Nothing, Just 1, Just 2]
-
-(def empty? (fn [a] (= a (quote ()))))
-(def inc (fn [b] (+ b 1)))
-(def map (fn [f coll] (if (empty? coll) (quote ()) (cons (f (first coll)) (map f (next coll))))))
-
--- ((fn [f sm] (f sm)) (fn [b] (+ b 1)))

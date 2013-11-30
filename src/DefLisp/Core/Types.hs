@@ -35,6 +35,10 @@ data ReservedKeyword = DefKeyword |
 
 data LispNum = Integer | Int
 
+data LispFunk = UserFunction [LispExpression] LispExpression |
+                LibraryFunction String ([LispExpression] -> LispExpression)
+              deriving (Generic)
+
 data LispExpression = LispSymbol String |
                       ReservedKeyword ReservedKeyword |
                       LispList [LispExpression] |
@@ -43,9 +47,10 @@ data LispExpression = LispSymbol String |
                       --LispNumber LispNum |
                       LispString String |
                       LispBool Bool |
-                      LispFunction [LispExpression] LispExpression |
+                      LispFunction LispFunk |
+                      -- LispFunction [LispExpression] LispExpression |
                       LispNil
-                    deriving (Eq, Generic)
+                    deriving (Generic)
 
 -- LispFunction (LispVector [LispSymbol "a", LispSymbol "a"]) (LispNumber 1)
 

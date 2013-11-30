@@ -42,6 +42,12 @@ What's done so far:
 
 (map inc (quot (1 2 3)))
 ;; => (2,3,4)
+
+(def reduce
+  (fn [f coll acc]
+    (if (empty? coll)
+      acc
+      (reduce f (next coll) (f acc (first coll))))))
 ```
 
 In words:
