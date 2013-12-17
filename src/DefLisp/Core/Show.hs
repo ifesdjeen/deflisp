@@ -5,6 +5,7 @@ import Deflisp.Core.Types
 
 instance Show LispFunk where
   show (LibraryFunction name _) = "library function: " ++ name
+  show (VarArgFunction _ _ _) = "vararg function"
   show (UserFunction _ _) = "user function"
 
 instance Show LispExpression where
@@ -12,11 +13,10 @@ instance Show LispExpression where
   show (LispSymbol n) = n
   show (ReservedKeyword n) = show n
   show (LispList n) = "(" ++ (unwords (map show n)) ++ ")"
-  show (LispVector n) = "(" ++ (unwords (map show n)) ++ ")"
+  show (LispVector n) = "[" ++ (unwords (map show n)) ++ "]"
   show (LispString n) = n
   show (LispBool n) = show n
   show (LispFunction a) = show a
-  -- show (LispFunction bindings expr) = "(fn [" ++ (show bindings) ++ "] " ++ (show expr) ++ ")"
   show (LispNil) = "nil"
 
 

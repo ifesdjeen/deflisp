@@ -30,6 +30,12 @@ parseNumber = do
      then pzero
      else return $ (LispNumber . read) $ sign ++ num
 
+quotedExpression :: Parser LispExpression
+quotedExpression = do
+  _ <- char '\''
+  res <- try parseLispExpression
+  return $ LispList $ [(LispSymbol "quote")] ++ [res]
+
 parseReserved :: Parser LispExpression
 parseReserved = do
   res <- try (string "def") <|>
@@ -62,6 +68,7 @@ parseVector = liftM LispVector $ sepBy parseLispExpression whiteSpace
 
 parseLispExpression :: Parser LispExpression
 parseLispExpression = try parseReserved <|>
+                      try quotedExpression <|>
                       parseTrue <|>
                       parseFalse <|>
                       parseSymbol <|>

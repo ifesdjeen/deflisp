@@ -1,3 +1,5 @@
+{-# LANGUAGE ViewPatterns #-}
+
 module Deflisp.Core where
 
 -- import Data.List
@@ -39,7 +41,8 @@ freshEnv = do
   void $ defineVar env (LispSymbol "conj") (LispFunction $ LibraryFunction "conj" (builtInOp "conj"))
   void $ defineVar env (LispSymbol "cons") (LispFunction $ LibraryFunction "cons" (builtInOp "cons"))
   void $ defineVar env (LispSymbol "=") (LispFunction $ LibraryFunction "+" (builtInOp "="))
-  void $ defineVar env (LispSymbol "empty?") (fnFromString "(fn [a] (= a (quote ())))")
+  void $ defineVar env (LispSymbol "list") (LispFunction $ LibraryFunction "list" (builtInOp "list"))
+  void $ defineVar env (LispSymbol "empty?") (fnFromString "(fn [a] (= a ()))")
   void $ defineVar env (LispSymbol "inc") (fnFromString "(fn [b] (+ b 1))")
   void $ defineVar env (LispSymbol "map") (fnFromString "(fn [f coll] (if (empty? coll) (quote ()) (cons (f (first coll)) (map f (next coll)))))")
   void $ defineVar env (LispSymbol "reduce") (fnFromString "(fn [f coll acc] (if (empty? coll) acc (reduce f (next coll) (f acc (first coll)))))")
@@ -94,6 +97,15 @@ numericOp op args = LispNumber $ foldl1 op $ map unpackNum args
 
 builtInOp :: String -> [LispExpression] -> LispExpression
 -- builtInOp "+" args | trace(show $ foldl1 (+) $ map unpackNum args) False = undefined
+builtInOp "list" args = LispList args
+
+-- builtInOp "if" [testExpression, truthyExpression, falsyExpression] =
+--   res <- if (isTrue test)
+--          then (eval env closure truthyExpression)
+--          else (eval env closure falsyExpression)
+--   where test = (eval env closure testExpression)
+--   return res
+
 builtInOp "+" args = numericOp (+) args
 builtInOp "-" args = numericOp (-) args
 builtInOp "*" args = numericOp (*) args
@@ -133,7 +145,16 @@ eval env closure (LispList[(ReservedKeyword DefKeyword), LispSymbol var, form]) 
   _ <- defineVar env (toSexp var) res
   return res
 
+
 -- Creates a function
+--eval _ _ (LispList[(ReservedKeyword FnKeyword), LispVector(bindings:(LispSymbol "&"):varargs  ), form]) = do
+eval _ _ (LispList[(ReservedKeyword FnKeyword),
+                   LispVector((break (== (LispSymbol "&")) ->
+                               (bindings, _:(vararg: _)))),
+                   form]) = do
+  return $ LispFunction $ VarArgFunction bindings vararg form
+
+
 eval _ _ (LispList[(ReservedKeyword FnKeyword), LispVector bindings, form]) = do
   --- TODO: add closure enclosing to function creation!!! Currently state is lost.
   return $ LispFunction $ UserFunction bindings form
@@ -149,23 +170,27 @@ eval env closure (LispList[(ReservedKeyword IfKeyword), testExpression,
          else (eval env closure falsyExpression)
   return res
 
-
-
-
 -- Evaluates a raw function, without binding
-eval envRef closure (LispList ((LispFunction (UserFunction bindings form)) : args)) = do
+eval envRef closure (LispList ((LispFunction (UserFunction bindings form)) : args))
+  | (length bindings) /= (length args) = error "Incorrect number of arguments"
+  | otherwise = do let zipped = zip bindings args
+                   e <- case closure of
+                     (Just x) -> return x
+                     Nothing -> freshEnv
+                   _ <- defineVars e zipped
+                   res <- eval envRef (Just e) form
+                   return $ res
+
+eval envRef closure (LispList
+                     ((LispFunction (VarArgFunction bindings vararg form)) : args)) = do
   let zipped = zip bindings args
   e <- case closure of
-        (Just x) -> return x
-        Nothing -> freshEnv
+    (Just x) -> return x
+    Nothing -> freshEnv
   _ <- defineVars e zipped
+  _ <- defineVar e vararg (LispList (drop (length bindings) args))
   res <- eval envRef (Just e) form
   return $ res
-  -- Why on earth wouldn't that work?.... So that one should work, te
-  -- where enclosedEnv = case closure of
-  --         (Just x) -> closure
-  --          Nothing -> maybe $ join freshEnv
-
 
 eval _ _ (LispList [(LispSymbol "quote"), val]) = return val
 
@@ -180,6 +205,7 @@ eval envRef closure (LispList (LispSymbol func: args)) = do
                 -- return $ builtInOp func evaledArgs
   return res
 
+eval env closure (LispList []) = return $ LispList []
 
 eval env closure (LispList x) = do
   -- let enclosed = eval env closure

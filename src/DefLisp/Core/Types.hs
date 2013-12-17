@@ -36,6 +36,7 @@ data ReservedKeyword = DefKeyword |
 data LispNum = Integer | Int
 
 data LispFunk = UserFunction [LispExpression] LispExpression |
+                VarArgFunction [LispExpression] LispExpression LispExpression |
                 LibraryFunction String ([LispExpression] -> LispExpression)
               deriving (Generic)
 
