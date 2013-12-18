@@ -82,3 +82,7 @@ cabal configure --enable-tests && cabal build && cabal test
 Copyright (c) Alex Petrov
 
 Double licensed under the Eclipse Public License or the Apache Public License 2.0.
+
+
+[![Bitdeli Badge](https://d2weczhvl823v0.cloudfront.net/ifesdjeen/deflisp/trend.png)](https://bitdeli.com/free "Bitdeli Badge")
+
