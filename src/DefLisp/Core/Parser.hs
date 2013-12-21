@@ -39,18 +39,19 @@ quotedExpression = do
 parseReserved :: Parser LispExpression
 parseReserved = do
   res <- try (string "def") <|>
+         try (string "nil") <|>
          try (string "if")  <|>
          try (string "fn")
   return $ toSexp res
 
 parseTrue :: Parser LispExpression
 parseTrue = do
-  res <- try (string "true")
+  void $ try (string "true")
   return $ LispBool True
 
 parseFalse :: Parser LispExpression
 parseFalse = do
-  res <- try (string "false")
+  void $ try (string "false")
   return $ LispBool False
 
 parseSymbol :: Parser LispExpression
@@ -94,7 +95,6 @@ lispDef
   , P.caseSensitive  = True
   }
 
---lexer :: P.GenTokenParser String () Identity
 lexer = P.makeTokenParser lispDef
 
 parens = P.parens lexer

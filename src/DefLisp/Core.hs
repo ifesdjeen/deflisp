@@ -16,7 +16,7 @@ import qualified Data.HashTable.IO as H
 type IOThrowsError = ErrorT LispError IO
 
 fromJust :: Maybe a -> a
-fromJust Nothing = error "Maybe.fromJust: Nothing YOYO"
+fromJust Nothing = error "Maybe.fromJust: got Nothing"
 fromJust (Just x) = x
 
 type Environment k v = H.BasicHashTable k v
@@ -47,7 +47,6 @@ freshEnv = do
   void $ defineVar env (LispSymbol "map") (fnFromString "(fn [f coll] (if (empty? coll) (quote ()) (cons (f (first coll)) (map f (next coll)))))")
   void $ defineVar env (LispSymbol "reduce") (fnFromString "(fn [f coll acc] (if (empty? coll) acc (reduce f (next coll) (f acc (first coll)))))")
   return env
-
 
 defineVar :: LispEnvironment -> LispExpression -> LispExpression -> IO (LispExpression)
 defineVar env symbol expr = do
@@ -84,6 +83,9 @@ unpackNum nan = error $ "Can't unpack number: " ++ (show nan)
 length_ :: [LispExpression] -> Int
 length_ x = length x
 
+drop_ :: Int -> [LispExpression] -> [LispExpression]
+drop_ n x = drop n x
+
 -- vals :: LispExpression a => [a] -> [a]
 -- vals (LispList x) = x
 
@@ -99,13 +101,6 @@ builtInOp :: String -> [LispExpression] -> LispExpression
 -- builtInOp "+" args | trace(show $ foldl1 (+) $ map unpackNum args) False = undefined
 builtInOp "list" args = LispList args
 
--- builtInOp "if" [testExpression, truthyExpression, falsyExpression] =
---   res <- if (isTrue test)
---          then (eval env closure truthyExpression)
---          else (eval env closure falsyExpression)
---   where test = (eval env closure testExpression)
---   return res
-
 builtInOp "+" args = numericOp (+) args
 builtInOp "-" args = numericOp (-) args
 builtInOp "*" args = numericOp (*) args
@@ -117,6 +112,8 @@ builtInOp "next" [list] = next list
 builtInOp "last" [list] = llast list
 builtInOp "conj" [list, el] = conj list el
 builtInOp "cons" [el, list] = cons el list
+
+builtInOp _ _ = error "Builtin operation is not known"
 
 liftVarToIO :: LispExpression -> IO LispExpression
 liftVarToIO a = return $ a
@@ -131,11 +128,11 @@ eval _ _ val@(LispNumber _) = return val
 
 eval _ _ val@(LispBool _) = return val
 
+eval _ _ LispNil = return LispNil
+
 -- TODO do replacing of vars
-eval env maybeClosure val@(LispSymbol sym) = do
+eval env maybeClosure (LispSymbol sym) = do
   let s = (toSexp sym)
-  --- WHY?
-  --a <- (findVarMaybe maybeClosure s) `mplus` (findVar env s)
   a <- (liftM2 mplus) (findVarMaybe maybeClosure s) (findVar env s)
   return $ fromJust a
 
@@ -144,7 +141,6 @@ eval env closure (LispList[(ReservedKeyword DefKeyword), LispSymbol var, form]) 
   res <- eval env closure form
   _ <- defineVar env (toSexp var) res
   return res
-
 
 -- Creates a function
 --eval _ _ (LispList[(ReservedKeyword FnKeyword), LispVector(bindings:(LispSymbol "&"):varargs  ), form]) = do
@@ -158,9 +154,6 @@ eval _ _ (LispList[(ReservedKeyword FnKeyword),
 eval _ _ (LispList[(ReservedKeyword FnKeyword), LispVector bindings, form]) = do
   --- TODO: add closure enclosing to function creation!!! Currently state is lost.
   return $ LispFunction $ UserFunction bindings form
-
--- eval env closure (LispList[(ReservedKeyword IfKeyword), testExpression,
---                            truthyExpression, falsyExpression]) | trace ("here" ) False = undefined
 
 eval env closure (LispList[(ReservedKeyword IfKeyword), testExpression,
                            truthyExpression, falsyExpression]) = do
@@ -195,17 +188,15 @@ eval envRef closure (LispList
 eval _ _ (LispList [(LispSymbol "quote"), val]) = return val
 
 eval envRef closure (LispList (LispSymbol func: args)) = do
-  -- lookup_ <- findVar envRef (toSexp func)
   let func_ = (toSexp func)
   lookup_ <- (liftM2 mplus) (findVarMaybe closure func_) (findVar envRef func_)
   evaledArgs <- mapM (eval envRef closure) args
   res <- case lookup_ of
     (Just x) -> evalFn envRef closure x evaledArgs
     Nothing  -> error "No such function"
-                -- return $ builtInOp func evaledArgs
   return res
 
-eval env closure (LispList []) = return $ LispList []
+eval _ _ (LispList []) = return $ LispList []
 
 eval env closure (LispList x) = do
   -- let enclosed = eval env closure
@@ -215,6 +206,8 @@ eval env closure (LispList x) = do
 
 eval _ _ val@(LispNumber _) = return val
 eval _ _ val@(LispBool _) = return val
+
+eval _ _ _ = error "Can't eval"
 
 evalFn :: LispEnvironment -> Maybe LispEnvironment -> LispExpression -> [LispExpression] -> IO LispExpression
 evalFn envRef closure (LispFunction (UserFunction bindings form)) args = do
@@ -226,13 +219,15 @@ evalFn envRef closure (LispFunction (UserFunction bindings form)) args = do
   res <- eval envRef (Just e) form
   return $ res
 
-evalFn envRef closure (LispFunction (LibraryFunction _ native)) args = return $ native args
+evalFn _ _ (LispFunction (LibraryFunction _ native)) args = return $ native args
+
+evalFn _ _ _ _ = error "Function can be either native, user-defined or built-in"
 
 
 evalAndPrint :: LispEnvironment -> String -> IO ()
 evalAndPrint envRef expr = do
-  let read = readExpression expr
-      evaled = eval envRef Nothing read
+  let read_ = readExpression expr
+      evaled = eval envRef Nothing read_
   s <- liftM show evaled
   print s
 
