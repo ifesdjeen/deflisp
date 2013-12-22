@@ -100,6 +100,7 @@ numericOp op args = LispNumber $ foldl1 op $ map unpackNum args
 builtInOp :: String -> [LispExpression] -> LispExpression
 -- builtInOp "+" args | trace(show $ foldl1 (+) $ map unpackNum args) False = undefined
 builtInOp "list" args = LispList args
+builtInOp op args | trace ("builtinop " ++ show op ++ show args) False = undefined
 
 builtInOp "+" args = numericOp (+) args
 builtInOp "-" args = numericOp (-) args
@@ -150,9 +151,27 @@ eval _ _ (LispList[(ReservedKeyword FnKeyword),
                    form]) = do
   return $ LispFunction $ VarArgFunction bindings vararg form
 
+eval envRef closure (LispList[(ReservedKeyword DefMacroKeyword),
+                              (LispSymbol name),
+                              LispVector((break (== (LispSymbol "&")) ->
+                                          (bindings, _:(vararg: _)))),
+                              form]) = do
+  let n = (LispSymbol name)
+      macro = LispFunction $ VariadicMacros bindings vararg form
+  void $ defineVar envRef n macro
+  return n
+
+eval envRef closure (LispList
+                     [(ReservedKeyword DefMacroKeyword),
+                      (LispSymbol name),
+                      (LispVector bindings),
+                      form]) = do
+  let n = (LispSymbol name)
+      macro = LispFunction $ Macros bindings form
+  void $ defineVar envRef n macro
+  return n
 
 eval _ _ (LispList[(ReservedKeyword FnKeyword), LispVector bindings, form]) = do
-  --- TODO: add closure enclosing to function creation!!! Currently state is lost.
   return $ LispFunction $ UserFunction bindings form
 
 eval env closure (LispList[(ReservedKeyword IfKeyword), testExpression,
@@ -174,6 +193,21 @@ eval envRef closure (LispList ((LispFunction (UserFunction bindings form)) : arg
                    res <- eval envRef (Just e) form
                    return $ res
 
+
+
+eval envRef closure (LispList
+                     ((LispFunction (Macros bindings form)) : args)) = do
+  let zipped = zip bindings args
+  -- TODO Extract that to the separate function
+  e <- case closure of
+    (Just x) -> return x
+    Nothing -> freshEnv
+  _ <- defineVars e zipped
+  res <- eval envRef (Just e) form
+  return $ res
+
+
+
 eval envRef closure (LispList
                      ((LispFunction (VarArgFunction bindings vararg form)) : args)) = do
   let zipped = zip bindings args
@@ -190,9 +224,8 @@ eval _ _ (LispList [(LispSymbol "quote"), val]) = return val
 eval envRef closure (LispList (LispSymbol func: args)) = do
   let func_ = (toSexp func)
   lookup_ <- (liftM2 mplus) (findVarMaybe closure func_) (findVar envRef func_)
-  evaledArgs <- mapM (eval envRef closure) args
   res <- case lookup_ of
-    (Just x) -> evalFn envRef closure x evaledArgs
+    (Just x) -> evalFn envRef closure x args
     Nothing  -> error "No such function"
   return res
 
@@ -210,8 +243,21 @@ eval _ _ val@(LispBool _) = return val
 eval _ _ _ = error "Can't eval"
 
 evalFn :: LispEnvironment -> Maybe LispEnvironment -> LispExpression -> [LispExpression] -> IO LispExpression
-evalFn envRef closure (LispFunction (UserFunction bindings form)) args = do
+
+evalFn envRef closure (LispFunction (VariadicMacros bindings vararg form)) args = do
   let zipped = zip bindings args
+  e <- case closure of
+    (Just x) -> return x
+    Nothing -> freshEnv
+  _ <- defineVars e zipped
+  _ <- defineVar e vararg (LispList (drop (length bindings) args))
+  res <- eval envRef (Just e) form
+  res2 <- eval envRef (Just e) res
+  return $ res2
+
+evalFn envRef closure (LispFunction (UserFunction bindings form)) args = do
+  evaledArgs <- mapM (eval envRef closure) args
+  let zipped = zip bindings evaledArgs
   e <- case closure of
     (Just x) -> return x
     Nothing -> freshEnv
@@ -219,7 +265,9 @@ evalFn envRef closure (LispFunction (UserFunction bindings form)) args = do
   res <- eval envRef (Just e) form
   return $ res
 
-evalFn _ _ (LispFunction (LibraryFunction _ native)) args = return $ native args
+evalFn envRef closure (LispFunction (LibraryFunction _ native)) args = do
+  evaledArgs <- mapM (eval envRef closure) args
+  return $ native evaledArgs
 
 evalFn _ _ _ _ = error "Function can be either native, user-defined or built-in"
 

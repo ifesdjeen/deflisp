@@ -27,8 +27,8 @@ parseNumber = do
   sign <- many (oneOf "-")
   num <- many1 (digit)
   if (length sign) > 1
-     then pzero
-     else return $ (LispNumber . read) $ sign ++ num
+    then pzero
+    else return $ (LispNumber . read) $ sign ++ num
 
 quotedExpression :: Parser LispExpression
 quotedExpression = do
@@ -38,7 +38,8 @@ quotedExpression = do
 
 parseReserved :: Parser LispExpression
 parseReserved = do
-  res <- try (string "def") <|>
+  res <- try (string "defmacro") <|>
+         try (string "def") <|>
          try (string "nil") <|>
          try (string "if")  <|>
          try (string "fn")

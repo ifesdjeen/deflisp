@@ -31,6 +31,7 @@ instance Error LispError where
 data ReservedKeyword = DefKeyword |
                        FnKeyword |
                        NilKeyword |
+                       DefMacroKeyword |
                        IfKeyword
                      deriving (Show, Eq)
 
@@ -38,6 +39,8 @@ data LispNum = Integer | Int
 
 data LispFunk = UserFunction [LispExpression] LispExpression |
                 VarArgFunction [LispExpression] LispExpression LispExpression |
+                Macros [LispExpression] LispExpression |
+                VariadicMacros [LispExpression] LispExpression LispExpression |
                 LibraryFunction String ([LispExpression] -> LispExpression)
               deriving (Generic)
 
@@ -82,6 +85,7 @@ instance LispLiteral [Char] where
   toSexp "def" = ReservedKeyword DefKeyword
   toSexp "fn" = ReservedKeyword FnKeyword
   toSexp "if" = ReservedKeyword IfKeyword
+  toSexp "defmacro" = ReservedKeyword DefMacroKeyword
   toSexp "nil" = LispNil
   toSexp n = LispSymbol n
 
