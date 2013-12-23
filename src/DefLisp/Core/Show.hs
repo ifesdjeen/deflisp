@@ -5,8 +5,8 @@ import Deflisp.Core.Types
 
 instance Show LispFunk where
   show (LibraryFunction name _) = "library function: " ++ name
-  show (VarArgFunction _ _ _) = "vararg function"
-  show (UserFunction _ _) = "user function"
+  show (VarArgFunction _ _ _ _) = "vararg function"
+  show (UserFunction _ _ _) = "user function"
   show (Macros _ _) = "macros"
   show (VariadicMacros _ _ _) = "variadic macros"
 

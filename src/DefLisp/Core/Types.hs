@@ -10,6 +10,12 @@ import Data.Hashable
 import Control.Monad.Error
 -- import Control.Monad.State
 
+import qualified Data.HashTable.IO as H
+
+type Environment k v = H.BasicHashTable k v
+
+type LispEnvironment = (Environment LispExpression LispExpression)
+
 
 
 type SymbolTable = Map.Map String LispExpression
@@ -37,8 +43,8 @@ data ReservedKeyword = DefKeyword |
 
 data LispNum = Integer | Int
 
-data LispFunk = UserFunction [LispExpression] LispExpression |
-                VarArgFunction [LispExpression] LispExpression LispExpression |
+data LispFunk = UserFunction [LispEnvironment] [LispExpression] LispExpression |
+                VarArgFunction [LispEnvironment] [LispExpression] LispExpression LispExpression |
                 Macros [LispExpression] LispExpression |
                 VariadicMacros [LispExpression] LispExpression LispExpression |
                 LibraryFunction String ([LispExpression] -> LispExpression)
