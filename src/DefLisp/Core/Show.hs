@@ -21,6 +21,8 @@ instance Show LispExpression where
   show (LispFunction a) = show a
   show (LispNil) = "nil"
 
+-- instance Show (IO LispExpression) where
+--   show (IO (LispNumber n)) = show n
 
 instance Eq LispExpression where
   (LispNumber a) == (LispNumber b)  = a == b

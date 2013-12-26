@@ -51,6 +51,7 @@ defineVar env symbol expr = do
   H.insert env symbol expr
   return symbol
 
+
 defineVars :: LispEnvironment -> [(LispExpression, LispExpression)] -> IO (LispExpression)
 defineVars env bindings = do
   void $ mapM (addBinding env) bindings
@@ -158,9 +159,9 @@ eval env closure (LispList[(ReservedKeyword DefKeyword), LispSymbol var, form]) 
 -- Creates a function
 --eval _ _ (LispList[(ReservedKeyword FnKeyword), LispVector(bindings:(LispSymbol "&"):varargs  ), form]) = do
 eval _ closure (LispList[(ReservedKeyword FnKeyword),
-                   LispVector((break (== (LispSymbol "&")) ->
-                               (bindings, _:(vararg: _)))),
-                   form]) = do
+                         LispVector((break (== (LispSymbol "&")) ->
+                                     (bindings, _:(vararg: _)))),
+                         form]) = do
   return $ LispFunction $ VarArgFunction closure bindings vararg form
 
 eval envRef closure (LispList[(ReservedKeyword DefMacroKeyword),
@@ -183,6 +184,7 @@ eval envRef closure (LispList
   void $ defineVar envRef n macro
   return n
 
+-- Create a new function from enclosed arguments
 eval _ closure (LispList[(ReservedKeyword FnKeyword), LispVector bindings, form]) = do
   return $ LispFunction $ UserFunction closure bindings form
 
@@ -195,15 +197,16 @@ eval env closure (LispList[(ReservedKeyword IfKeyword), testExpression,
   return res
 
 -- Evaluates a raw function, without binding
-eval envRef closure (LispList ((LispFunction (UserFunction fnClosure bindings form)) : args))
-  | (length bindings) /= (length args) = error "Incorrect number of arguments"
-  | otherwise = do let zipped = zip bindings args
-                   e <- freshEnv
-                   void $ defineVars e zipped
-                   res <- eval envRef ([e] ++ fnClosure ++ closure) form
-                   return $ res
+eval envRef closure (LispList
+                     (val@(LispFunction (UserFunction fnClosure bindings form)) :
+                      args)) =
+  evalFn envRef closure val args
 
-
+eval envRef closure (LispList
+                     (val@(LispFunction
+                           (VarArgFunction fnClosure bindings vararg form)) :
+                      args)) =
+  evalFn envRef closure val args
 
 eval envRef closure (LispList
                      ((LispFunction (Macros bindings form)) : args)) = do
@@ -211,17 +214,6 @@ eval envRef closure (LispList
   -- TODO Extract that to the separate function
   e <- freshEnv
   void $ defineVars e zipped
-  res <- eval envRef ([e] ++ closure) form
-  return $ res
-
-
-eval envRef closure (LispList
-                     ((LispFunction
-                       (VarArgFunction fnClosure bindings vararg form)) : args)) = do
-  let zipped = zip bindings args
-  e <- freshEnv
-  void $ defineVars e zipped
-  void $ defineVar e vararg (LispList (drop (length bindings) args))
   res <- eval envRef ([e] ++ closure) form
   return $ res
 
@@ -259,20 +251,28 @@ evalFn envRef closure (LispFunction (VariadicMacros bindings vararg form)) args 
   res2 <- eval envRef ([e] ++ closure) expansion
   return $ res2
 
-evalFn envRef closure (LispFunction (UserFunction fnClosure bindings form)) args = do
-  evaledArgs <- mapM (eval envRef (fnClosure ++ closure)) args
-  let zipped = zip bindings evaledArgs
-  e <- freshEnv
-  void $ defineVars e zipped
-  res <- eval envRef ([e] ++ fnClosure ++ closure) form
-  return $ res
+evalFn envRef closure (LispFunction (UserFunction fnClosure bindings form)) args
+  | (length bindings) /= (length args) = error "Incorrect number of arguments"
+  | otherwise = do let zipped = zip bindings args
+                   e <- freshEnv
+                   void $ defineVars e zipped
+                   res <- eval envRef ([e] ++ fnClosure ++ closure) form
+                   return $ res
+
+evalFn envRef closure (LispFunction (VarArgFunction fnClosure bindings vararg form)) args
+  | (length bindings) < (length args) = error "Incorrect number of arguments"
+  | otherwise =  do let zipped = zip bindings args
+                    e <- freshEnv
+                    void $ defineVars e zipped
+                    void $ defineVar e vararg (LispList (drop (length bindings) args))
+                    res <- eval envRef ([e] ++ closure) form
+                    return $ res
 
 evalFn envRef closure (LispFunction (LibraryFunction _ native)) args = do
   evaledArgs <- mapM (eval envRef closure) args
   return $ native evaledArgs
 
 evalFn _ _ _ _ = error "Function can be either native, user-defined or built-in"
-
 
 evalAndPrint :: LispEnvironment -> String -> IO ()
 evalAndPrint envRef expr = do
@@ -281,7 +281,8 @@ evalAndPrint envRef expr = do
   s <- liftM show evaled
   print s
 
-
+evalString :: LispEnvironment -> String -> IO LispExpression
+evalString env expr = eval env [] (readExpression expr)
 
 repl :: IO ()
 repl = freshEnv >>= untilM (== "quit") (readPrompt "Lisp>>> ") . evalAndPrint

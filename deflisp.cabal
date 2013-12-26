@@ -26,6 +26,8 @@ Test-Suite spec
   Build-Depends:        base
                       , hspec
                       , deflisp
+                      , hspec-expectations-lifted >= 0.5.0
+                      , QuickCheck >= 2.6
 
 Source-Repository head
   Type:                 git
