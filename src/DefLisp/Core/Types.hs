@@ -4,22 +4,17 @@
 module Deflisp.Core.Types where
 
 import GHC.Generics (Generic)
+import Control.Monad.State
 import qualified Data.Map as Map
 import Data.Hashable
 
 import Control.Monad.Error
 -- import Control.Monad.State
 
-import qualified Data.HashTable.IO as H
+-- type Environment k v = H.BasicHashTable k v
 
-type Environment k v = H.BasicHashTable k v
-
-type LispEnvironment = (Environment LispExpression LispExpression)
-
-
-
-type SymbolTable = Map.Map String LispExpression
-data Context = Ctx SymbolTable (Maybe Context)
+type LispEnvironment = (Map.Map LispExpression LispExpression)
+type Context = State LispEnvironment LispExpression
 
 type ThrowsError = Either LispError
 
@@ -32,14 +27,12 @@ instance Error LispError where
     noMsg = Default "An error has occurred"
     strMsg = Default
 
--- type LispResult = StateT Context LispError LispExpression
-
 data ReservedKeyword = DefKeyword |
                        FnKeyword |
                        NilKeyword |
                        DefMacroKeyword |
                        IfKeyword
-                     deriving (Show, Eq)
+                     deriving (Show, Eq, Ord)
 
 data LispNum = Integer | Int
 
@@ -48,7 +41,7 @@ data LispFunk = UserFunction [LispEnvironment] [LispExpression] LispExpression |
                 Macros [LispExpression] LispExpression |
                 VariadicMacros [LispExpression] LispExpression LispExpression |
                 LibraryFunction String ([LispExpression] -> LispExpression)
-              deriving (Generic)
+              deriving (Generic, Eq, Ord)
 
 data LispExpression = LispSymbol String |
                       ReservedKeyword ReservedKeyword |
@@ -61,7 +54,7 @@ data LispExpression = LispSymbol String |
                       LispFunction LispFunk |
                       -- LispFunction [LispExpression] LispExpression |
                       LispNil
-                    deriving (Generic)
+                    deriving (Generic, Eq, Ord)
 
 -- LispFunction (LispVector [LispSymbol "a", LispSymbol "a"]) (LispNumber 1)
 
@@ -71,6 +64,16 @@ instance Hashable LispExpression where
 
   hashWithSalt s n = s `hashWithSalt`
                      (0::Int) `hashWithSalt` n
+
+
+instance Eq ([LispExpression] -> LispExpression) where
+  a == b = False
+
+instance Ord ([LispExpression] -> LispExpression) where
+  compare _ _ = EQ
+
+
+
 
 mklNumber :: Integer -> LispExpression
 mklNumber n = LispNumber n

@@ -24,12 +24,12 @@ instance Show LispExpression where
 -- instance Show (IO LispExpression) where
 --   show (IO (LispNumber n)) = show n
 
-instance Eq LispExpression where
-  (LispNumber a) == (LispNumber b)  = a == b
-  (LispBool a) == (LispBool b)  = a == b
-  (LispSymbol a) == (LispSymbol b)  = a == b
-  (LispList a) == (LispList b)  = a == b
-  (LispVector a) == (LispVector b)  = a == b
-  (LispString a) == (LispString b)  = a == b
-  LispNil == LispNil  = True
-  _ == _ = False
+-- instance Eq LispExpression where
+  -- (LispNumber a) == (LispNumber b)  = a == b
+  -- (LispBool a) == (LispBool b)  = a == b
+  -- (LispSymbol a) == (LispSymbol b)  = a == b
+  -- (LispList a) == (LispList b)  = a == b
+  -- (LispVector a) == (LispVector b)  = a == b
+  -- (LispString a) == (LispString b)  = a == b
+  -- LispNil == LispNil  = True
+  -- _ == _ = False
