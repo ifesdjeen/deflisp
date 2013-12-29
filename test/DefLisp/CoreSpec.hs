@@ -30,5 +30,26 @@ spec = do
                                                             LispList [LispNumber 3, LispNumber 4]]
 
   describe "functions" $ do
-    it "anonymous function evaluates" $ do
+    it "anonymous function evaluates correctly" $ do
       evalSingleString "((fn [a] (+ 1 a)) 5)" `shouldBe` (LispNumber 6)
+
+    it "library functions work" $ do
+      evalSingleString "(map inc '(1 2 3))" `shouldBe` (LispList [(LispNumber 2),
+                                                                  (LispNumber 3),
+                                                                  (LispNumber 4)])
+
+    it "library functions with anonymous functions" $ do
+      evalSingleString "(map (fn [a] (+ a 2)) '(1 2 3))" `shouldBe`
+        (LispList [(LispNumber 3),
+                   (LispNumber 4),
+                   (LispNumber 5)])
+
+  describe "syntax" $ do
+    it "empty list evaluates to empty list" $ do
+      evalSingleString "()" `shouldBe` (LispList [])
+
+    it "if / else with truthy value evaluates only truthy expression" $ do
+      evalSingleString "(if true 1 2)" `shouldBe` (LispNumber 1)
+
+    it "if / else with falsy value evaluates only truthy expression" $ do
+      evalSingleString "(if false 1 2)" `shouldBe` (LispNumber 2)

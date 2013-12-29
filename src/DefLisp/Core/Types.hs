@@ -4,7 +4,7 @@ module Deflisp.Core.Types where
 
 import Control.Monad.State
 import qualified Data.Map as Map
-import Data.Hashable
+
 
 import Control.Monad.Error
 
@@ -53,16 +53,8 @@ data LispExpression = LispSymbol String |
 
 -- LispFunction (LispVector [LispSymbol "a", LispSymbol "a"]) (LispNumber 1)
 
-instance Hashable LispExpression where
-  hashWithSalt s (LispSymbol n) = s `hashWithSalt`
-                                  (0::Int) `hashWithSalt` n
-
-  hashWithSalt s n = s `hashWithSalt`
-                     (0::Int) `hashWithSalt` n
-
-
 instance Eq ([LispExpression] -> LispExpression) where
-  a == b = False
+  _ == _ = False
 
 instance Ord ([LispExpression] -> LispExpression) where
   compare _ _ = EQ
