@@ -28,34 +28,36 @@ fnFromString expression =
     _ -> error ""
 
 freshEnv :: LispEnvironment
-freshEnv = Map.empty
--- freshEnv = do
---   env <- H.new
---   void $ defineVar env (LispSymbol "+") (LispFunction $ LibraryFunction "+" (builtInOp "+"))
---   void $ defineVar env (LispSymbol "-") (LispFunction $ LibraryFunction "-" (builtInOp "-"))
---   void $ defineVar env (LispSymbol "*") (LispFunction $ LibraryFunction "*" (builtInOp "*"))
---   void $ defineVar env (LispSymbol "/") (LispFunction $ LibraryFunction "/" (builtInOp "/"))
---   void $ defineVar env (LispSymbol "first") (LispFunction $ LibraryFunction "first" (builtInOp "first"))
---   void $ defineVar env (LispSymbol "next") (LispFunction $ LibraryFunction "next" (builtInOp "next"))
---   void $ defineVar env (LispSymbol "last") (LispFunction $ LibraryFunction "last" (builtInOp "last"))
---   void $ defineVar env (LispSymbol "conj") (LispFunction $ LibraryFunction "conj" (builtInOp "conj"))
---   void $ defineVar env (LispSymbol "cons") (LispFunction $ LibraryFunction "cons" (builtInOp "cons"))
---   void $ defineVar env (LispSymbol "=") (LispFunction $ LibraryFunction "+" (builtInOp "="))
---   void $ defineVar env (LispSymbol "list") (LispFunction $ LibraryFunction "list" (builtInOp "list"))
---   void $ defineVar env (LispSymbol "empty?") (fnFromString "(fn [a] (= a ()))")
---   void $ defineVar env (LispSymbol "inc") (fnFromString "(fn [b] (+ b 1))")
---   void $ defineVar env (LispSymbol "map") (fnFromString "(fn [f coll] (if (empty? coll) (quote ()) (cons (f (first coll)) (map f (next coll)))))")
---   void $ defineVar env (LispSymbol "reduce") (fnFromString "(fn [f coll acc] (if (empty? coll) acc (reduce f (next coll) (f acc (first coll)))))")
---   return env
+--freshEnv = Map.empty
+freshEnv =
+  defineVars Map.empty
+  [( (LispSymbol "+"), (LispFunction $ LibraryFunction "+" (builtInOp "+")) ),
+   ( (LispSymbol "+"), (LispFunction $ LibraryFunction "+" (builtInOp "+")) ),
+   ( (LispSymbol "-"), (LispFunction $ LibraryFunction "-" (builtInOp "-")) ),
+   ( (LispSymbol "*"), (LispFunction $ LibraryFunction "*" (builtInOp "*")) ),
+   ( (LispSymbol "/"), (LispFunction $ LibraryFunction "/" (builtInOp "/")) ),
+   ( (LispSymbol "="), (LispFunction $ LibraryFunction "+" (builtInOp "=")) ),
+   ( (LispSymbol "first"), (LispFunction $ LibraryFunction "first" (builtInOp "first")) ),
+   ( (LispSymbol "next"), (LispFunction $ LibraryFunction "next" (builtInOp "next")) ),
+   ( (LispSymbol "last"), (LispFunction $ LibraryFunction "last" (builtInOp "last")) ),
+   ( (LispSymbol "conj"), (LispFunction $ LibraryFunction "conj" (builtInOp "conj")) ),
+   ( (LispSymbol "cons"), (LispFunction $ LibraryFunction "cons" (builtInOp "cons")) ),
+   ( (LispSymbol "list"), (LispFunction $ LibraryFunction "list" (builtInOp "list")) ),
+   ( (LispSymbol "empty?"), (fnFromString "(fn [a] (= a ()))") ),
+   ( (LispSymbol "inc"), (fnFromString "(fn [b] (+ b 1))") ),
+   ( (LispSymbol "map"), (fnFromString "(fn [f coll] (if (empty? coll) (quote ()) (cons (f (first coll)) (map f (next coll)))))") ),
+   ( (LispSymbol "reduce"), (fnFromString "(fn [f coll acc] (if (empty? coll) acc (reduce f (next coll) (f acc (first coll)))))") )
+  ]
 
 defineVar :: LispEnvironment -> LispExpression -> LispExpression -> LispEnvironment
 defineVar env symbol expr = Map.insert symbol expr env
 
-defineVars :: LispEnvironment -> [(LispExpression, LispExpression)] -> [LispEnvironment]
-defineVars env bindings =
-  map (addBinding env) bindings
-  where addBinding e (var, value) = Map.insert var value e
+defineVars :: LispEnvironment -> [(LispExpression, LispExpression)] -> LispEnvironment
 
+defineVars env ((var, value):more) =
+  defineVars (Map.insert var value env) more
+
+defineVars env [] = env
 
 isJust         :: Maybe a -> Bool
 isJust Nothing = False
@@ -134,7 +136,7 @@ getClosure Nothing = freshEnv
 
 eval :: [LispEnvironment] -> LispExpression -> State LispEnvironment LispExpression
 
--- eval _ _ c | trace ("eval " ++ show c) False = undefined
+eval _ c | trace ("eval " ++ show c) False = undefined
 
 eval _ val@(LispString _) = return val
 
@@ -145,16 +147,15 @@ eval _ val@(LispBool _) = return val
 eval _ LispNil = return LispNil
 
 -- -- TODO do replacing of vars
+eval _ (LispList [(LispSymbol "quote"), val]) = return val
+
 eval closure sym@(LispSymbol _) = do
   env <- get
   case (findVarInClosure closure sym) of
     (Just x) -> return x
     Nothing -> return $ fromJust (findVar env sym)
-  -- fromJust $ findVarInClosure closure sym
-  -- do
-  --let s = (toSexp sym)
-  --a <- (liftM2 mplus) (findVarInClosure closure s) (findVar env s)
-  --return $ fromJust a
+
+eval _ (LispList []) = return $ LispList []
 
 -- Defines a variable
 eval closure (LispList[(ReservedKeyword DefKeyword), var@(LispSymbol _), form]) =
@@ -165,78 +166,111 @@ eval closure (LispList[(ReservedKeyword DefKeyword), var@(LispSymbol _), form]) 
     put $ defineVar env var evaled
     return var
 
--- -- Creates a function
--- --eval _ _ (LispList[(ReservedKeyword FnKeyword), LispVector(bindings:(LispSymbol "&"):varargs  ), form]) = do
--- eval _ closure (LispList[(ReservedKeyword FnKeyword),
---                          LispVector((break (== (LispSymbol "&")) ->
---                                      (bindings, _:(vararg: _)))),
---                          form]) =
---   LispFunction $ VarArgFunction closure bindings vararg form
+-- Creates a function
+eval closure (LispList[(ReservedKeyword FnKeyword),
+                       LispVector((break (== (LispSymbol "&")) ->
+                                   (bindings, _:(vararg: _)))),
+                       form]) =
+  return $ LispFunction $ VarArgFunction closure bindings vararg form
 
--- eval envRef closure (LispList[(ReservedKeyword DefMacroKeyword),
---                               (LispSymbol name),
---                               LispVector((break (== (LispSymbol "&")) ->
---                                           (bindings, _:(vararg: _)))),
---                               form]) = do
---   let n = (LispSymbol name)
---       macro = LispFunction $ VariadicMacros bindings vararg form
---   void $ defineVar envRef n macro
---   return n
+-- Defines a variadic macros
+eval closure (LispList[(ReservedKeyword DefMacroKeyword),
+                       name@(LispSymbol _),
+                       LispVector((break (== (LispSymbol "&")) ->
+                                   (bindings, _:(vararg: _)))),
+                       form]) = do
+  env <- get
+  put $ defineVar env name (LispFunction $ VariadicMacros bindings vararg form)
+  return name
 
--- eval envRef closure (LispList
---                      [(ReservedKeyword DefMacroKeyword),
---                       (LispSymbol name),
---                       (LispVector bindings),
---                       form]) = do
---   let n = (LispSymbol name)
---       macro = LispFunction $ Macros bindings form
---   void $ defineVar envRef n macro
---   return n
+-- Creates a macros
+eval closure (LispList
+              [(ReservedKeyword DefMacroKeyword),
+               name@(LispSymbol _),
+               (LispVector bindings),
+               form]) = do
+  env <- get
+  put $ defineVar env name (LispFunction $ Macros bindings form)
+  return name
 
--- -- Create a new function from enclosed arguments
--- eval _ closure (LispList[(ReservedKeyword FnKeyword), LispVector bindings, form]) = do
---   return $ LispFunction $ UserFunction closure bindings form
+-- Create a new function from enclosed arguments
+eval closure (LispList[(ReservedKeyword FnKeyword), LispVector bindings, form]) = do
+  return $ LispFunction $ UserFunction closure bindings form
 
--- eval env closure (LispList[(ReservedKeyword IfKeyword), testExpression,
---                            truthyExpression, falsyExpression]) = do
---   test <- (eval env closure testExpression)
---   res <- if (isTrue test)
---          then (eval env closure truthyExpression)
---          else (eval env closure falsyExpression)
---   return res
+eval closure (LispList[(ReservedKeyword IfKeyword), testExpression,
+                       truthyExpression, falsyExpression]) = do
+  test <- (eval closure testExpression)
+  res <- if (isTrue test)
+         then (eval closure truthyExpression)
+         else (eval closure falsyExpression)
+  return res
 
--- -- Evaluates a raw function, without binding
--- eval envRef closure (LispList
---                      (val@(LispFunction (UserFunction fnClosure bindings form)) :
---                       args)) =
---   evalFn envRef closure val args
+-- Evaluates a raw function, without binding
+eval closure (LispList
+              ((LispFunction (UserFunction fnClosure bindings form)) :
+               args))
+  | (length bindings) /= (length args) = error "Incorrect number of arguments"
+  | otherwise =
+    do
+      env <- get
+      let evaled = map (\arg -> evalState (eval closure arg) env) args
+          fnArgs = zip bindings evaled
+          fnEnv = defineVars freshEnv fnArgs
+      eval ([fnEnv] ++ fnClosure ++ closure) form
 
--- eval envRef closure (LispList
---                      (val@(LispFunction
---                            (VarArgFunction fnClosure bindings vararg form)) :
---                       args)) =
---   evalFn envRef closure val args
+-- Evaluates a vararg function
+eval closure (LispList
+              ((LispFunction (VarArgFunction fnClosure bindings vararg form)) :
+               args))
+  | (length bindings) < (length args) = error "Incorrect number of arguments"
+  | otherwise =
+    do
+      env <- get
+      let evaled = map (\arg -> evalState (eval closure arg) env) args
+          fnArgs = zip bindings evaled
+          fnEnv = defineVars freshEnv fnArgs
+          withVariadicBinding = defineVar fnEnv vararg (LispList (drop (length bindings) args))
+      eval ([withVariadicBinding] ++ fnClosure ++ closure) form
 
--- eval envRef closure (LispList
---                      ((LispFunction (Macros bindings form)) : args)) = do
---   let zipped = zip bindings args
---   -- TODO Extract that to the separate function
---   e <- freshEnv
---   void $ defineVars e zipped
---   res <- eval envRef ([e] ++ closure) form
---   return $ res
+-- Evaluates a library/native function
+eval closure (LispList
+              ((LispFunction (LibraryFunction _ native)) :
+               args)) =
+  -- TODO: conut arguments of a library function
+  do
+    env <- get
+    let evaled = map (\arg -> evalState (eval closure arg) env) args
+    return $ native evaled
 
--- eval _ _ (LispList [(LispSymbol "quote"), val]) = return val
+eval closure (LispList (func@(LispSymbol _): args)) = do
+  env <- get
+  let funk = evalState (eval closure func) env
+  eval closure (LispList ([funk] ++ args))
 
--- eval envRef closure (LispList (LispSymbol func: args)) = do
---   let func_ = (toSexp func)
---   lookup_ <- (liftM2 mplus) (findVarInClosure closure func_) (findVar envRef func_)
---   res <- case lookup_ of
---     (Just x) -> evalFn envRef closure x args
---     Nothing  -> error "No such function"
---   return res
+-- Evaluates a raw macros, without binding
+eval closure (LispList
+              ((LispFunction (Macros bindings form)) :
+               args))
+  | (length bindings) /= (length args) = error "Incorrect number of arguments"
+  | otherwise =
+    do
+      env <- get
+      let macroArgs = zip bindings args
+          macroEnv = defineVars freshEnv macroArgs
+      eval ([macroEnv] ++ closure) form
 
--- eval _ _ (LispList []) = return $ LispList []
+-- Evaluates a vararg function
+eval closure (LispList
+              ((LispFunction (VariadicMacros bindings vararg form)) :
+               args))
+  | (length bindings) < (length args) = error "Incorrect number of arguments"
+  | otherwise =
+    do
+      env <- get
+      let fnArgs = zip bindings args
+          fnEnv = defineVars freshEnv fnArgs
+          withVariadicBinding = defineVar fnEnv vararg (LispList (drop (length bindings) args))
+      eval ([withVariadicBinding] ++ closure) form
 
 -- eval env closure (LispList x) = do
 --   -- let enclosed = eval env closure
@@ -244,53 +278,9 @@ eval closure (LispList[(ReservedKeyword DefKeyword), var@(LispSymbol _), form]) 
 --   z <- eval env closure (LispList y)
 --   return $ z
 
--- eval _ _ val@(LispNumber _) = return val
--- eval _ _ val@(LispBool _) = return val
-
--- eval _ _ _ = error "Can't eval"
-
--- evalFn :: LispEnvironment -> [LispEnvironment] -> LispExpression -> [LispExpression] -> IO LispExpression
-
--- evalFn envRef closure (LispFunction (VariadicMacros bindings vararg form)) args = do
---   let zipped = zip bindings args
---   e <- freshEnv
---   void $ defineVars e zipped
---   void $ defineVar e vararg (LispList (drop (length bindings) args))
---   expansion <- eval envRef ([e] ++ closure) form
---   res2 <- eval envRef ([e] ++ closure) expansion
---   return $ res2
-
--- evalFn envRef closure (LispFunction (UserFunction fnClosure bindings form)) args
---   | (length bindings) /= (length args) = error "Incorrect number of arguments"
---   | otherwise = do let zipped = zip bindings args
---                    e <- freshEnv
---                    void $ defineVars e zipped
---                    res <- eval envRef ([e] ++ fnClosure ++ closure) form
---                    return $ res
-
--- evalFn envRef closure (LispFunction (VarArgFunction fnClosure bindings vararg form)) args
---   | (length bindings) < (length args) = error "Incorrect number of arguments"
---   | otherwise =  do let zipped = zip bindings args
---                     e <- freshEnv
---                     void $ defineVars e zipped
---                     void $ defineVar e vararg (LispList (drop (length bindings) args))
---                     res <- eval envRef ([e] ++ closure) form
---                     return $ res
-
--- evalFn envRef closure (LispFunction (LibraryFunction _ native)) args = do
---   evaledArgs <- mapM (eval envRef closure) args
---   return $ native evaledArgs
+eval _ form = error $ "Don't know how to eval" ++ (show form)
 
 -- evalFn _ _ _ _ = error "Function can be either native, user-defined or built-in"
-
-
--- evalAndPrint :: LispEnvironment -> String -> IO ()
--- evalAndPrint env expr = do
---   let read_ = readExpression expr
---       evaled = evalState (eval [] read_) env
---   -- s <- (liftM show) evaled
---   -- print (liftVarToIO evaled)
---   print evaled
 
 repl :: IO ()
 repl = repl2 freshEnv
