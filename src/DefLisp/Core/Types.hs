@@ -1,17 +1,12 @@
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
 
 module Deflisp.Core.Types where
 
-import GHC.Generics (Generic)
 import Control.Monad.State
 import qualified Data.Map as Map
 import Data.Hashable
 
 import Control.Monad.Error
--- import Control.Monad.State
-
--- type Environment k v = H.BasicHashTable k v
 
 type LispEnvironment = (Map.Map LispExpression LispExpression)
 type Context = State LispEnvironment LispExpression
@@ -41,7 +36,7 @@ data LispFunk = UserFunction [LispEnvironment] [LispExpression] LispExpression |
                 Macros [LispExpression] LispExpression |
                 VariadicMacros [LispExpression] LispExpression LispExpression |
                 LibraryFunction String ([LispExpression] -> LispExpression)
-              deriving (Generic, Eq, Ord)
+              deriving (Eq, Ord)
 
 data LispExpression = LispSymbol String |
                       ReservedKeyword ReservedKeyword |
@@ -54,7 +49,7 @@ data LispExpression = LispSymbol String |
                       LispFunction LispFunk |
                       -- LispFunction [LispExpression] LispExpression |
                       LispNil
-                    deriving (Generic, Eq, Ord)
+                    deriving (Eq, Ord)
 
 -- LispFunction (LispVector [LispSymbol "a", LispSymbol "a"]) (LispNumber 1)
 

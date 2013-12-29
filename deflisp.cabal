@@ -15,7 +15,12 @@ Library
   GHC-Options:          -Wall
   Exposed-Modules:      Deflisp.Core, Deflisp.Core.Parser, Deflisp.Core.Types, Deflisp.Core.Show
   Other-Modules:        Deflisp.Core.Internal
-  Build-Depends:        base >= 4 && < 5, parsec >3, mtl >2.1, containers >0.5, hashtables > 1.0, hashable > 1.0
+  Build-Depends:        base >= 4 && < 5
+                        , parsec >3
+                        , mtl >2.1
+                        , containers >0.5
+                        , hashtables > 1.0
+                        , hashable > 1.0
 
 Test-Suite spec
   Type:                 exitcode-stdio-1.0
@@ -26,9 +31,8 @@ Test-Suite spec
   Build-Depends:        base
                       , hspec
                       , deflisp
-                      , hspec-expectations-lifted >= 0.5.0
                       , QuickCheck >= 2.6
-
+                      , mtl >2.1
 Source-Repository head
   Type:                 git
 --  Location:
