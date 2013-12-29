@@ -222,7 +222,7 @@ eval closure (LispList
 eval closure (LispList
               ((LispFunction (VarArgFunction fnClosure bindings vararg form)) :
                args))
-  | (length bindings) < (length args) = error "Incorrect number of arguments"
+  | (length bindings) > (length args) = error "Incorrect number of arguments"
   | otherwise =
     do
       env <- get
@@ -261,12 +261,16 @@ eval closure (LispList
 eval closure (LispList
               ((LispFunction (VariadicMacros bindings vararg form)) :
                args))
-  | (length bindings) < (length args) = error "Incorrect number of arguments"
+  | (length bindings) > (length args) = error "Incorrect number of arguments"
   | otherwise =
-    let fnArgs = zip bindings args
-        fnEnv = defineVars freshEnv fnArgs
-        withVariadicBinding = defineVar fnEnv vararg (LispList (drop (length bindings) args)) in
-    eval ([withVariadicBinding] ++ closure) form
+    do
+      let fnArgs = zip bindings args
+          fnEnv = defineVars freshEnv fnArgs
+          withVariadicBinding = defineVar fnEnv vararg (LispList (drop (length bindings) args))
+      env <- get
+      let expanded = evalState (eval ([withVariadicBinding] ++ closure) form) env
+      eval closure expanded
+
 
 eval _ (LispList x) | trace ("eval List: " ++ show x) False = undefined
 eval closure (LispList x) = do
@@ -321,3 +325,7 @@ untilM pred_ prompt action = do
      else action result >> untilM pred_ prompt action
 
 -- readExpression "(fn [a b] (+ a b))"
+
+
+
+-- (defmacro or [cond & conds] (list 'if  cond cond  (if (= conds ()) 'false (cons 'or conds))))

@@ -72,3 +72,11 @@ spec = do
     describe "def" $ do
       it "defines a var" $ do
         evalStrings ["(def a 1)", "a"] `shouldBe` (LispNumber 1)
+
+      it "defines a function" $ do
+        evalStrings ["(def myinc (fn [a] (+ 1 a)))",
+                     "(myinc 1)"] `shouldBe` (LispNumber 2)
+
+      it "defines a macro" $ do
+        evalStrings ["(defmacro or [cond & conds] (list 'if  cond cond  (if (= conds ()) 'false (cons 'or conds))))",
+                     "(or false 2 3)"] `shouldBe` (LispNumber 2)
