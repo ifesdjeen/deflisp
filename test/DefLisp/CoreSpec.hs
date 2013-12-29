@@ -29,6 +29,21 @@ spec = do
                                                             LispList [LispNumber 1, LispNumber 2],
                                                             LispList [LispNumber 3, LispNumber 4]]
 
+  describe "library functions" $ do
+    describe "first" $ do
+      it "returns a first element of a non-empty list" $ do
+        evalSingleString "(first '(1 2 3))" `shouldBe` (LispNumber 1)
+      it "returns nil if empty list is given" $ do
+        evalSingleString "(first ())" `shouldBe` LispNil
+
+    describe "last" $ do
+      it "returns a last element of a non-empty list" $ do
+        evalSingleString "(last '(1 2 3))" `shouldBe` (LispNumber 3)
+      it "returns nil if empty list is given" $ do
+        evalSingleString "(last ())" `shouldBe` LispNil
+
+    -- TODO: more library fns
+
   describe "functions" $ do
     it "anonymous function evaluates correctly" $ do
       evalSingleString "((fn [a] (+ 1 a)) 5)" `shouldBe` (LispNumber 6)

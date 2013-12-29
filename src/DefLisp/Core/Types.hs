@@ -104,8 +104,6 @@ class LispCollection l where
   conj :: l -> LispExpression -> LispExpression
   cons :: l -> LispExpression -> LispExpression
   count :: l -> LispExpression
-  -- cons :: l -> LispExpression -> [LispExpression]
-
 
 
 instance LispCollection LispExpression where
@@ -121,12 +119,12 @@ instance LispCollection LispExpression where
   llast (LispList l) = last l
   llast _ = error "Can't get last of whatnot"
 
-  conj (LispList l) e = LispList $ l ++ [e]
   conj (LispList []) e = LispList $ [e]
+  conj (LispList l) e = LispList $ l ++ [e]
 
-  cons e (LispList l) = LispList $ e:l
   cons e (LispList []) = LispList $ [e]
-
+  cons e (LispList l) = LispList $ e:l
+  cons a b = error "Can't cons: " -- ++ (show a) ++ " and " ++ (show b)
   -- count (LispList []) = LispNumber 0
   -- count (LispList a) = LispNumber $ length a
   -- count _ = error "Can only perform count on lists and vectors"
