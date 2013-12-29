@@ -32,39 +32,43 @@ spec = do
   describe "library functions" $ do
     describe "first" $ do
       it "returns a first element of a non-empty list" $ do
-        evalSingleString "(first '(1 2 3))" `shouldBe` (LispNumber 1)
+        evalString "(first '(1 2 3))" `shouldBe` (LispNumber 1)
       it "returns nil if empty list is given" $ do
-        evalSingleString "(first ())" `shouldBe` LispNil
+        evalString "(first ())" `shouldBe` LispNil
 
     describe "last" $ do
       it "returns a last element of a non-empty list" $ do
-        evalSingleString "(last '(1 2 3))" `shouldBe` (LispNumber 3)
+        evalString "(last '(1 2 3))" `shouldBe` (LispNumber 3)
       it "returns nil if empty list is given" $ do
-        evalSingleString "(last ())" `shouldBe` LispNil
+        evalString "(last ())" `shouldBe` LispNil
 
     -- TODO: more library fns
 
   describe "functions" $ do
     it "anonymous function evaluates correctly" $ do
-      evalSingleString "((fn [a] (+ 1 a)) 5)" `shouldBe` (LispNumber 6)
+      evalString "((fn [a] (+ 1 a)) 5)" `shouldBe` (LispNumber 6)
 
     it "library functions work" $ do
-      evalSingleString "(map inc '(1 2 3))" `shouldBe` (LispList [(LispNumber 2),
+      evalString "(map inc '(1 2 3))" `shouldBe` (LispList [(LispNumber 2),
                                                                   (LispNumber 3),
                                                                   (LispNumber 4)])
 
     it "library functions with anonymous functions" $ do
-      evalSingleString "(map (fn [a] (+ a 2)) '(1 2 3))" `shouldBe`
+      evalString "(map (fn [a] (+ a 2)) '(1 2 3))" `shouldBe`
         (LispList [(LispNumber 3),
                    (LispNumber 4),
                    (LispNumber 5)])
 
   describe "syntax" $ do
     it "empty list evaluates to empty list" $ do
-      evalSingleString "()" `shouldBe` (LispList [])
+      evalString "()" `shouldBe` (LispList [])
 
     it "if / else with truthy value evaluates only truthy expression" $ do
-      evalSingleString "(if true 1 2)" `shouldBe` (LispNumber 1)
+      evalString "(if true 1 2)" `shouldBe` (LispNumber 1)
 
     it "if / else with falsy value evaluates only truthy expression" $ do
-      evalSingleString "(if false 1 2)" `shouldBe` (LispNumber 2)
+      evalString "(if false 1 2)" `shouldBe` (LispNumber 2)
+
+    describe "def" $ do
+      it "defines a var" $ do
+        evalStrings ["(def a 1)", "a"] `shouldBe` (LispNumber 1)

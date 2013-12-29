@@ -291,15 +291,20 @@ repl2 env = do
             void $ print result
             repl2 newEnv
 
-evalString :: String -> State LispEnvironment LispExpression
+evalString :: String -> LispExpression
 evalString expression =
-  do let read_ = readExpression expression
-     eval [] read_
+  evalState (step expression) freshEnv
+  where step expression = do let read_ = readExpression expression
+                             eval [] read_
 
-evalSingleString :: String -> LispExpression
-evalSingleString expression =
-  evalState (evalString expression) freshEnv
-
+evalStrings :: [String] -> LispExpression
+evalStrings expressions =
+  step readExpressions (LispNil, freshEnv)
+  where readExpressions = map readExpression expressions
+        step [] (lastResult, env) =
+          lastResult
+        step (current:more) (lastResult, env) =
+          step more (runState (eval [] current) env)
 
 
 readPrompt :: String -> IO String
