@@ -37,6 +37,7 @@ freshEnv =
    ( (LispSymbol "/"), (LispFunction $ LibraryFunction "/" (builtInOp "/")) ),
    ( (LispSymbol "="), (LispFunction $ LibraryFunction "+" (builtInOp "=")) ),
    ( (LispSymbol "first"), (LispFunction $ LibraryFunction "first" (builtInOp "first")) ),
+   ( (LispSymbol "count"), (LispFunction $ LibraryFunction "count" (builtInOp "count")) ),
    ( (LispSymbol "next"), (LispFunction $ LibraryFunction "next" (builtInOp "next")) ),
    ( (LispSymbol "last"), (LispFunction $ LibraryFunction "last" (builtInOp "last")) ),
    ( (LispSymbol "conj"), (LispFunction $ LibraryFunction "conj" (builtInOp "conj")) ),
@@ -112,26 +113,18 @@ builtInOp "+" args = numericOp (+) args
 builtInOp "-" args = numericOp (-) args
 builtInOp "*" args = numericOp (*) args
 builtInOp "/" args = numericOp (div) args
+
 builtInOp "=" args = LispBool $ and $ map (== head args) (tail args)
 
 builtInOp "first" [list] = lfirst list
+builtInOp "count" [list] = count list
+
 builtInOp "next" [list] = next list
 builtInOp "last" [list] = llast list
 builtInOp "conj" [list, el] = conj list el
 builtInOp "cons" [el, list] = cons el list
 
 builtInOp _ _ = error "Builtin operation is not known"
-
-liftVarToIO :: LispExpression -> IO LispExpression
-liftVarToIO a = return $ a
-
-liftEnvToIO :: LispEnvironment -> IO LispEnvironment
-liftEnvToIO a = return a
-
-
-getClosure :: Maybe LispEnvironment -> LispEnvironment
-getClosure (Just x) = x
-getClosure Nothing = freshEnv
 
 eval :: [LispEnvironment] -> LispExpression -> State LispEnvironment LispExpression
 
@@ -156,6 +149,9 @@ eval closure sym@(LispSymbol _) = do
     Nothing -> return $ fromJust (findVar env sym)
 
 eval _ (LispList []) = return $ LispList []
+
+eval _ val@(LispVector _) = return val
+
 
 -- Defines a variable
 eval closure (LispList[(ReservedKeyword DefKeyword), var@(LispSymbol _), form]) =
@@ -253,11 +249,17 @@ eval closure (LispList
                args))
   | (length bindings) /= (length args) = error "Incorrect number of arguments"
   | otherwise =
-    let macroArgs = zip bindings args
-        macroEnv = defineVars freshEnv macroArgs in
-    eval ([macroEnv] ++ closure) form
+    do
+      let macroArgs = zip bindings args
+          macroEnv = defineVars freshEnv macroArgs
+      env <- get
+      let expanded = evalState (eval ([macroEnv] ++ closure) form) env
+      eval closure expanded
+
+
 
 -- Evaluates a vararg function
+-- TODO: add function that would expand a macro
 eval closure (LispList
               ((LispFunction (VariadicMacros bindings vararg form)) :
                args))

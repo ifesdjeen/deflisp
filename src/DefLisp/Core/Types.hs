@@ -29,8 +29,6 @@ data ReservedKeyword = DefKeyword |
                        IfKeyword
                      deriving (Show, Eq, Ord)
 
-data LispNum = Integer | Int
-
 data LispFunk = UserFunction [LispEnvironment] [LispExpression] LispExpression |
                 VarArgFunction [LispEnvironment] [LispExpression] LispExpression LispExpression |
                 Macros [LispExpression] LispExpression |
@@ -62,20 +60,8 @@ instance Ord ([LispExpression] -> LispExpression) where
 
 
 
-mklNumber :: Integer -> LispExpression
-mklNumber n = LispNumber n
-
-mklSymbol :: String -> LispExpression
-mklSymbol n = LispSymbol n
-
-mklString :: String -> LispExpression
-mklString n = LispString n
-
 class LispLiteral l where
   toSexp :: l -> LispExpression
-
-instance LispLiteral Integer where
-  toSexp n = LispNumber n
 
 instance LispLiteral [Char] where
   toSexp "def" = ReservedKeyword DefKeyword
@@ -91,11 +77,6 @@ instance LispLiteral [Char] where
 instance LispLiteral Bool where
   toSexp n = LispBool n
 
-mklList :: [Integer] -> LispExpression
-mklList a = LispList $ map toSexp a
--- LispList [1,2,3]
-
-
 -- List operations
 class LispCollection l where
   lfirst :: l -> LispExpression
@@ -109,25 +90,49 @@ class LispCollection l where
 instance LispCollection LispExpression where
   lfirst (LispList []) = LispNil -- todo add empty collection handling
   lfirst (LispList (l:_)) = l -- todo add empty collection handling
+
+  lfirst (LispVector []) = LispNil -- todo add empty collection handling
+  lfirst (LispVector (l:_)) = l -- todo add empty collection handling
+
   lfirst _ = error "Can't get next of whatnot"
 
   next (LispList []) = LispNil
   next (LispList (_:l)) = LispList l
+
+  next (LispVector []) = LispNil
+  next (LispVector (_:l)) = LispVector l
+
   next _ = error "Can't get next of whatnot"
 
   llast (LispList []) = LispNil
   llast (LispList l) = last l
+
+  llast (LispVector []) = LispNil
+  llast (LispVector l) = last l
   llast _ = error "Can't get last of whatnot"
 
   conj (LispList []) e = LispList $ [e]
   conj (LispList l) e = LispList $ l ++ [e]
 
+  conj (LispVector []) e = LispList $ [e]
+  conj (LispVector l) e = LispList $ l ++ [e]
+
+  conj _ _ = error "Can't conj"
+
   cons e (LispList []) = LispList $ [e]
   cons e (LispList l) = LispList $ e:l
+
+  cons e (LispVector []) = LispList $ [e]
+  cons e (LispVector l) = LispList $ e:l
+
   cons a b = error "Can't cons: " -- ++ (show a) ++ " and " ++ (show b)
-  -- count (LispList []) = LispNumber 0
-  -- count (LispList a) = LispNumber $ length a
-  -- count _ = error "Can only perform count on lists and vectors"
+
+  count (LispList []) = LispNumber 0
+  count (LispList a) = LispNumber $ toInteger $ length a
+
+  count (LispVector []) = LispNumber 0
+  count (LispVector a) = LispNumber $ toInteger $ length a
+  count _ = error "Can only perform count on lists and vectors"
 
 class IsTrue l where
   isTrue :: l -> Bool
