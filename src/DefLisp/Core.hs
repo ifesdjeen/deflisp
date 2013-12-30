@@ -43,6 +43,7 @@ freshEnv =
    ( (LispSymbol "conj"), (LispFunction $ LibraryFunction "conj" (builtInOp "conj")) ),
    ( (LispSymbol "cons"), (LispFunction $ LibraryFunction "cons" (builtInOp "cons")) ),
    ( (LispSymbol "list"), (LispFunction $ LibraryFunction "list" (builtInOp "list")) ),
+   ( (LispSymbol "vector"), (LispFunction $ LibraryFunction "vector" (builtInOp "vector")) ),
    ( (LispSymbol "empty?"), (fnFromString "(fn [a] (= a ()))") ),
    ( (LispSymbol "inc"), (fnFromString "(fn [b] (+ b 1))") ),
    ( (LispSymbol "map"), (fnFromString "(fn [f coll] (if (empty? coll) (quote ()) (cons (f (first coll)) (map f (next coll)))))") ),
@@ -107,6 +108,8 @@ numericOp op args = LispNumber $ foldl1 op $ map unpackNum args
 builtInOp :: String -> [LispExpression] -> LispExpression
 -- builtInOp "+" args | trace(show $ foldl1 (+) $ map unpackNum args) False = undefined
 builtInOp "list" args = LispList args
+builtInOp "vector" args = LispVector args
+
 -- builtInOp op args | trace ("builtinop " ++ show op ++ show args) False = undefined
 
 builtInOp "+" args = numericOp (+) args
@@ -141,6 +144,9 @@ eval _ LispNil = return LispNil
 eval _ (LispList [(LispSymbol "quote"), val]) | trace ("eval Quoting of " ++ show val)
                                                 False = undefined
 eval _ (LispList [(LispSymbol "quote"), val]) = return val
+
+eval closure (LispList [(LispSymbol "do"), form]) = eval closure form
+
 
 eval closure sym@(LispSymbol _) = do
   env <- get
@@ -275,10 +281,14 @@ eval closure (LispList
 
 
 eval _ (LispList x) | trace ("eval List: " ++ show x) False = undefined
-eval closure (LispList x) = do
-  env <- get
-  let evaled = LispList $ map (\arg -> evalState (eval closure arg) env) x
-  eval closure evaled
+eval closure val@(LispList x) =
+  if (isPrimitive val)
+  then return val
+  else
+    do
+      env <- get
+      let evaled = LispList $ map (\arg -> evalState (eval closure arg) env) x
+      eval closure evaled
 
 eval _ form = error $ "Don't know how to eval :`" ++ (show form)
 

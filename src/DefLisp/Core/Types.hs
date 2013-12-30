@@ -49,6 +49,15 @@ data LispExpression = LispSymbol String |
                       LispNil
                     deriving (Eq, Ord)
 
+isPrimitive :: LispExpression -> Bool
+isPrimitive (LispNumber _) = True
+isPrimitive (LispBool _) = True
+isPrimitive (LispString _) = True
+isPrimitive LispNil = True
+isPrimitive (LispList []) = True
+isPrimitive (LispList (x:xs)) = (isPrimitive x) && (isPrimitive $ LispList xs)
+isPrimitive _ = False
+
 -- LispFunction (LispVector [LispSymbol "a", LispSymbol "a"]) (LispNumber 1)
 
 instance Eq ([LispExpression] -> LispExpression) where

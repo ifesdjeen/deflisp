@@ -80,3 +80,19 @@ spec = do
       it "defines a macro" $ do
         evalStrings ["(defmacro or [cond & conds] (list 'if  cond cond  (if (= conds ()) 'false (cons 'or conds))))",
                      "(or false 2 3)"] `shouldBe` (LispNumber 2)
+
+      describe "when macro" $ do
+        it "should return a result of expression when trutly value is given" $ do
+          evalStrings ["(defmacro when [test & body] (list 'if test (cons 'do body) nil))",
+                       "(when true 1)"] `shouldBe` (LispNumber 1)
+
+        it "should return nil when faulty value is given" $ do
+          evalStrings ["(defmacro when [test & body] (list 'if test (cons 'do body) nil))",
+                       "(when false 1)"] `shouldBe` LispNil
+
+
+      -- it "apply" $ do
+      --   evalStrings ["(defmacro apply [var cond] (cons var cond))",
+      --                "(apply + '(1 2 3))"] `shouldBe` (LispList
+      --                                                  [LispNumber 1,
+      --                                                   ])
