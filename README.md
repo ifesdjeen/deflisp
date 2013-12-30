@@ -56,12 +56,11 @@ In words:
   * equality checks (`=`)
   * function definition
   * recursion (yeah, tail-call optimised, hence Haskell)
+  * macros
 
 What's missing:
 
-  * capturing closures within functions
-  * let statements (completely absent), will be implemented before macros, then ditched
-    when macros are around
+  * let statements (completely absent)
 
 Lists are not cons cells, so it's not a real lisp, but I don't care.
 
@@ -85,4 +84,3 @@ Double licensed under the Eclipse Public License or the Apache Public License 2.
 
 
 [![Bitdeli Badge](https://d2weczhvl823v0.cloudfront.net/ifesdjeen/deflisp/trend.png)](https://bitdeli.com/free "Bitdeli Badge")
-
