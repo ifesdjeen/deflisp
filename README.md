@@ -3,6 +3,9 @@
 Everyone should implement his own Lisp. I'm not an exception. I'm doing it
 just for learning and fun. Don't excpect anything extraordinary here.
 
+[Here's a little blog post on the subject](http://coffeenco.de/articles/write_you_lisp_in_haskell.html), that explains main concepts
+that were used here.
+
 What's done so far:
 
 ```clj
