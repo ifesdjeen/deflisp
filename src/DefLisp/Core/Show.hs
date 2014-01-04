@@ -1,6 +1,7 @@
 module Deflisp.Core.Show where
 
 import Deflisp.Core.Types
+import Debug.Trace
 
 
 instance Show LispFunk where
@@ -20,6 +21,8 @@ instance Show LispExpression where
   show (LispBool n) = show n
   show (LispFunction a) = show a
   show (LispNil) = "nil"
+  show (LispIO _) = "io"
+  -- show a | (trace a) False = undefined
 
 -- instance Show (IO LispExpression) where
 --   show (IO (LispNumber n)) = show n

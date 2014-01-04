@@ -8,6 +8,7 @@ import Deflisp.Core.Show
 import Deflisp.Core.Parser
 
 import System.IO
+import System.IO.Unsafe (unsafePerformIO)
 import Control.Monad.State
 import Control.Monad.Error
 import Debug.Trace
@@ -35,7 +36,8 @@ freshEnv =
    ( (LispSymbol "-"), (LispFunction $ LibraryFunction "-" (builtInOp "-")) ),
    ( (LispSymbol "*"), (LispFunction $ LibraryFunction "*" (builtInOp "*")) ),
    ( (LispSymbol "/"), (LispFunction $ LibraryFunction "/" (builtInOp "/")) ),
-   ( (LispSymbol "="), (LispFunction $ LibraryFunction "+" (builtInOp "=")) ),
+   ( (LispSymbol "="), (LispFunction $ LibraryFunction "=" (builtInOp "=")) ),
+   ( (LispSymbol "print"), (LispFunction $ LibraryFunction "print" (builtInOp "print")) ),
    ( (LispSymbol "first"), (LispFunction $ LibraryFunction "first" (builtInOp "first")) ),
    ( (LispSymbol "count"), (LispFunction $ LibraryFunction "count" (builtInOp "count")) ),
    ( (LispSymbol "next"), (LispFunction $ LibraryFunction "next" (builtInOp "next")) ),
@@ -102,6 +104,9 @@ drop_ n x = drop n x
 
 --
 
+ioToWrapped :: (IO ()) -> LispExpression
+ioToWrapped a = LispIO a
+
 numericOp :: (Integer -> Integer -> Integer) -> [LispExpression] -> LispExpression
 numericOp op args = LispNumber $ foldl1 op $ map unpackNum args
 
@@ -116,6 +121,10 @@ builtInOp "+" args = numericOp (+) args
 builtInOp "-" args = numericOp (-) args
 builtInOp "*" args = numericOp (*) args
 builtInOp "/" args = numericOp (div) args
+-- TODO: Figure out how to rewrite that to LispIO
+builtInOp "print" args = unsafePerformIO $ do
+  void $ print $ unwords (map show args)
+  return LispNil
 
 builtInOp "=" args = LispBool $ and $ map (== head args) (tail args)
 
@@ -299,7 +308,7 @@ repl = repl2 freshEnv
 
 repl2 :: LispEnvironment -> IO ()
 repl2 env = do
-  expression <- readPrompt "Lisp >>>"
+  expression <- readPrompt "Lisp >>> "
   if (expression == "quit")
     then return ()
     else do let read_ = readExpression expression

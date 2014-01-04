@@ -45,6 +45,7 @@ data LispExpression = LispSymbol String |
                       LispString String |
                       LispBool Bool |
                       LispFunction LispFunk |
+                      LispIO (IO ()) |
                       -- LispFunction [LispExpression] LispExpression |
                       LispNil
                     deriving (Eq, Ord)
@@ -66,6 +67,13 @@ instance Eq ([LispExpression] -> LispExpression) where
 instance Ord ([LispExpression] -> LispExpression) where
   compare _ _ = EQ
 
+
+
+instance Eq (IO ()) where
+  _ == _ = False
+
+instance Ord (IO ()) where
+  compare _ _ = EQ
 
 
 
