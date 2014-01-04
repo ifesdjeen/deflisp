@@ -123,8 +123,8 @@ builtInOp "*" args = numericOp (*) args
 builtInOp "/" args = numericOp (div) args
 -- TODO: Figure out how to rewrite that to LispIO
 builtInOp "print" args = unsafePerformIO $ do
-  void $ print $ unwords (map show args)
-  return LispNil
+  void $ flushStr $ "> " ++ (unwords (map show args)) ++ "\n"
+  return $ LispNil
 
 builtInOp "=" args = LispBool $ and $ map (== head args) (tail args)
 
@@ -251,7 +251,7 @@ eval closure (LispList
   do
     env <- get
     let evaled = map (\arg -> evalState (eval closure arg) env) args
-    return $ native evaled
+    return $! native evaled
 
 eval closure (LispList (func@(LispSymbol _): args)) = do
   env <- get
@@ -324,12 +324,26 @@ evalString expression =
 
 evalStrings :: [String] -> LispExpression
 evalStrings expressions =
-  step readExpressions (LispNil, freshEnv)
-  where readExpressions = map readExpression expressions
-        step [] (lastResult, env) =
+  evalExpressions $ map readExpression expressions
+
+evalExpressions :: [LispExpression] -> LispExpression
+evalExpressions expressions =
+  step expressions (LispNil, freshEnv)
+  where step [] (lastResult, env) =
           lastResult
         step (current:more) (lastResult, env) =
           step more (runState (eval [] current) env)
+
+evalExpressionsIO :: [LispExpression] -> IO LispExpression
+evalExpressionsIO expressions = return $ evalExpressions expressions
+
+evalFile :: String -> IO LispExpression
+evalFile filename = do
+  s <- readFile filename
+  expressions <- readExpressions s
+  res <- evalExpressionsIO expressions
+  return res
+
 
 
 readPrompt :: String -> IO String
@@ -343,7 +357,7 @@ untilM pred_ prompt action = do
   result <- prompt
   if pred_ result
      then return ()
-     else action result >> untilM pred_ prompt action
+    else action result >> untilM pred_ prompt action
 
 -- readExpression "(fn [a b] (+ a b))"
 

@@ -1,4 +1,4 @@
-module Deflisp.Core.Parser (readExpression) where
+module Deflisp.Core.Parser (readExpression, readExpressions) where
 
 import Deflisp.Core.Types
 import Control.Monad.Error
@@ -80,10 +80,20 @@ parseLispExpression = try parseReserved <|>
                       brackets parseVector  --  <|>
                       -- <?> "Expression"
 
+parseLispExpressions :: Parser [LispExpression]
+parseLispExpressions = many parseLispExpression
+
 readExpression :: String -> LispExpression
 readExpression input = case (parse parseLispExpression "lisp" input) of
   Left err -> LispString $ "No match: " ++ show err
   Right x -> x
+
+readExpressions :: String -> IO [LispExpression]
+readExpressions input =
+  case (parse parseLispExpressions "lisp" input) of
+    Left err -> error "Can't parse"
+    Right x -> return x
+
 
 
 lispDef :: LanguageDef ()
