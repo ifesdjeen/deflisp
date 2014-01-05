@@ -9,9 +9,11 @@ import Deflisp.Core.Parser
 
 import System.IO
 import System.IO.Unsafe (unsafePerformIO)
+import Control.DeepSeq
 import Control.Monad.State
 import Control.Monad.Error
 import Debug.Trace
+
 
 import qualified Data.Map as Map
 type IOThrowsError = ErrorT LispError IO
@@ -46,9 +48,7 @@ freshEnv =
    ( (LispSymbol "conj"), (LispFunction $ LibraryFunction "conj" (builtInOp "conj")) ),
    ( (LispSymbol "cons"), (LispFunction $ LibraryFunction "cons" (builtInOp "cons")) ),
    ( (LispSymbol "list"), (LispFunction $ LibraryFunction "list" (builtInOp "list")) ),
-   ( (LispSymbol "vector"), (LispFunction $ LibraryFunction "vector" (builtInOp "vector")) )
-
-  ]
+   ( (LispSymbol "vector"), (LispFunction $ LibraryFunction "vector" (builtInOp "vector")) )]
 
 defineVar :: LispEnvironment -> LispExpression -> LispExpression -> LispEnvironment
 defineVar env symbol expr = Map.insert symbol expr env
@@ -121,8 +121,8 @@ builtInOp "*" args = numericOp (*) args
 builtInOp "/" args = numericOp (div) args
 -- TODO: Figure out how to rewrite that to LispIO
 builtInOp "print" args = unsafePerformIO $ do
-  void $ flushStr $ "> " ++ (unwords (map show args)) ++ "\n"
-  return $ LispNil
+  void $! flushStr $ "> " ++ (unwords (map show args)) ++ "\n"
+  return $! LispNil
 
 builtInOp "=" args = LispBool $ and $ map (== head args) (tail args)
 
@@ -140,6 +140,8 @@ eval :: [LispEnvironment] -> LispExpression -> State LispEnvironment LispExpress
 
 -- eval _ c | trace ("eval " ++ show c) False = undefined
 
+eval _ val@(ReservedKeyword _) = return val
+
 eval _ val@(LispString _) = return val
 
 eval _ val@(LispNumber _) = return val
@@ -151,10 +153,35 @@ eval _ LispNil = return LispNil
 -- eval _ (LispList [(LispSymbol "quote"), val]) | trace ("eval Quoting of " ++ show val) False = undefined
 eval _ (LispList [(LispSymbol "quote"), val]) = return val
 
-eval closure (LispList ((LispSymbol "do"): (x:xs))) =
-  step xs (eval closure x)
-  where step (x:more) res = step more (eval closure x)
-        step [] res = res
+-- eval closure (LispList ((LispSymbol "do"): forms)) =
+  -- do
+  --   env <- get
+  --   let evaled = map (\arg -> evalState (eval closure arg) env) forms
+  --   return $ deepseq evaled (last evaled)
+
+-- eval closure (LispList ((LispSymbol "do"): (x:xs))) =
+--   step xs (eval closure x)
+--   where step (x:more) res = deepseq res (step more (eval closure x))
+--         step [] res = deepseq res res
+
+eval closure (LispList ((LispSymbol "do"): forms)) =
+  do
+    env <- get
+    let (res, newEnv) = step forms (LispNil, env)
+    put $ newEnv
+    return res
+  where step [] (lastResult, env) =
+          (lastResult, env)
+        step (current:more) (lastResult, env) =
+          deepseq lastResult (step more (runState (eval closure current) env))
+
+eval closure (LispList [(LispSymbol "eval"), form]) =
+  do
+    env <- get
+    -- void $ defineVar env var (eval env closure form)
+    let evaled = evalState (eval closure form) env
+    eval closure evaled
+
 
 -- eval closure (LispSymbol val) | trace ("eval Lookup of " ++ show val) False = undefined
 
@@ -168,6 +195,8 @@ eval _ (LispList []) = return $ LispList []
 
 eval _ val@(LispVector _) = return val
 
+
+eval closure (LispList[(ReservedKeyword DefKeyword), (LispSymbol val), _]) | trace ("eval def  " ++ show val) False = undefined
 
 -- Defines a variable
 eval closure (LispList[(ReservedKeyword DefKeyword), var@(LispSymbol _), form]) =
@@ -270,11 +299,10 @@ eval closure (LispList
     do
       let macroArgs = zip bindings args
           macroEnv = defineVars freshEnv macroArgs
+      -- eval ([macroEnv] ++ closure) form
       env <- get
       let expanded = evalState (eval ([macroEnv] ++ closure) form) env
       eval closure expanded
-
-
 
 -- Evaluates a vararg function
 -- TODO: add function that would expand a macro
@@ -287,6 +315,7 @@ eval closure (LispList
       let fnArgs = zip bindings args
           fnEnv = defineVars freshEnv fnArgs
           withVariadicBinding = defineVar fnEnv vararg (LispList (drop (length bindings) args))
+      -- eval ([withVariadicBinding] ++ closure) form
       env <- get
       let expanded = evalState (eval ([withVariadicBinding] ++ closure) form) env
       eval closure expanded
@@ -333,7 +362,7 @@ evalExpressions expressions =
   step expressions (LispNil, freshEnv)
   where step [] (lastResult, env) =
           lastResult
-        step (current:more) (lastResult, env) =
+        step (current:more) (_, env) =
           step more (runState (eval [] current) env)
 
 evalExpressionsIO :: [LispExpression] -> IO LispExpression

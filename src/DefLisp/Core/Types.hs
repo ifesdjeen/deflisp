@@ -2,6 +2,7 @@
 
 module Deflisp.Core.Types where
 
+import Control.DeepSeq
 import Control.Monad.State
 import qualified Data.Map as Map
 
@@ -161,3 +162,7 @@ instance IsTrue LispExpression where
   isTrue (LispBool True) = True
   isTrue (LispBool False) = False
   isTrue _ = True
+
+instance NFData LispExpression
+
+instance NFData (State LispEnvironment LispExpression)
