@@ -3,8 +3,13 @@
 Everyone should implement his own Lisp. I'm not an exception. I'm doing it
 just for learning and fun. Don't excpect anything extraordinary here.
 
-[Here's a little blog post on the subject](http://coffeenco.de/articles/write_you_lisp_in_haskell.html), that explains main concepts
-that were used here.
+[Here's a little blog post on the subject](http://coffeenco.de/articles/write_you_lisp_in_haskell.html), that explains main concepts that were used here.
+
+I've tried my best to stick to Clojure syntax. Actually, most of the "core"
+implementation was first written in Clojure, afterwards it ran smoothly on deflisp.
+Because I've enjoyed working on deflisp so much, you may expect it to be under
+active development, but all I'm doing here is for the joy of programming. I'm
+somehow certain that there are better lisps out there.
 
 What's done so far:
 
@@ -64,6 +69,11 @@ In words:
 What's missing:
 
   * let statements (completely absent)
+
+Big plans:
+
+  * pattern matching
+  * algebraic data types
 
 Lists are not cons cells, so it's not a real lisp, but I don't care.
 
