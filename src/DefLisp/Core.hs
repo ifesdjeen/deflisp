@@ -167,13 +167,18 @@ eval _ (LispList [(LispSymbol "quote"), val]) = return val
 eval closure (LispList ((LispSymbol "do"): forms)) =
   do
     env <- get
-    let (res, newEnv) = step forms (LispNil, env)
+    let (res, newEnv) = evalMany env closure forms
     put $ newEnv
-    return res
-  where step [] (lastResult, env) =
-          (lastResult, env)
-        step (current:more) (lastResult, env) =
-          deepseq lastResult (step more (runState (eval closure current) env))
+    return $ res
+  -- do
+  --   env <- get
+  --   let (res, newEnv) = step forms (LispNil, env)
+  --   put $ newEnv
+  --   return res
+  -- where step [] (lastResult, env) =
+  --         (lastResult, env)
+  --       step (current:more) (lastResult, env) =
+  --         deepseq lastResult (step more (runState (eval closure current) env))
 
 eval closure (LispList [(LispSymbol "eval"), form]) =
   do
@@ -256,9 +261,11 @@ eval closure (LispList
   | otherwise =
     do
       env <- get
+      -- let (evaled, newEnv) = evalAll env closure args
       let evaled = map (\arg -> evalState (eval closure arg) env) args
           fnArgs = zip bindings evaled
           fnEnv = defineVars freshEnv fnArgs
+      -- put $ newEnv
       eval ([fnEnv] ++ fnClosure ++ closure) form
 
 -- Evaluates a vararg function
@@ -301,7 +308,8 @@ eval closure (LispList
           macroEnv = defineVars freshEnv macroArgs
       -- eval ([macroEnv] ++ closure) form
       env <- get
-      let expanded = evalState (eval ([macroEnv] ++ closure) form) env
+      let (expanded, newEnv) = runState (eval ([macroEnv] ++ closure) form) env
+      put $ newEnv
       eval closure expanded
 
 -- Evaluates a vararg function
@@ -317,7 +325,8 @@ eval closure (LispList
           withVariadicBinding = defineVar fnEnv vararg (LispList (drop (length bindings) args))
       -- eval ([withVariadicBinding] ++ closure) form
       env <- get
-      let expanded = evalState (eval ([withVariadicBinding] ++ closure) form) env
+      let (expanded, newEnv) = runState (eval ([withVariadicBinding] ++ closure) form) env
+      put $ newEnv
       eval closure expanded
 
 -- eval _ (LispList x) | trace ("eval List: " ++ show x) False = undefined
@@ -327,8 +336,14 @@ eval closure val@(LispList x) =
   else
     do
       env <- get
-      let evaled = LispList $ map (\arg -> evalState (eval closure arg) env) x
-      eval closure evaled
+      let (res, newEnv) = evalMany env closure x
+      put $ newEnv
+      return $ res
+
+-- do
+    --   env <- get
+    --   let evaled = LispList $ map (\arg -> evalState (eval closure arg) env) x
+    --   eval closure evaled
 
 eval _ form = error $ "Don't know how to eval :`" ++ (show form)
 
@@ -394,3 +409,20 @@ untilM pred_ prompt action = do
 
 
 -- (defmacro or [cond & conds] (list 'if  cond cond  (if (= conds ()) 'false (cons 'or conds))))
+
+evalMany :: LispEnvironment -> [LispEnvironment] -> [LispExpression] -> (LispExpression, LispEnvironment)
+evalMany e closure forms =
+  step forms (LispNil, e)
+  where step [] (lastResult, env) =
+          (lastResult, env)
+        step (current:more) (lastResult, env) =
+          deepseq lastResult (step more (runState (eval closure current) env))
+
+evalAll :: LispEnvironment -> [LispEnvironment] -> [LispExpression] -> ([LispExpression], LispEnvironment)
+evalAll env closure forms =
+  step forms ([], env)
+  where step [] (lastResult, env)  =
+          (lastResult, env)
+        step (current:more) (lastResult, env) =
+          let (currentResult, newEnv) = runState (eval closure current) env in
+          step more ([deepseq currentResult currentResult] ++ lastResult, newEnv)

@@ -72,7 +72,8 @@
           (do
             (def c 5)
             (is (= c 5)))
-          (is (= c 5))
+          (comment
+            (is (= c 5)))
           )
 
          true))
