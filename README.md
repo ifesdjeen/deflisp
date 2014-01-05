@@ -81,7 +81,7 @@ Lists are not cons cells, so it's not a real lisp, but I don't care.
 
 ## Usage
 
-Try avoiding using it
+Try to avoid using it.
 
 ## How to run tests
 
