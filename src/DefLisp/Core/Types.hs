@@ -37,8 +37,10 @@ data LispFunk = UserFunction [LispEnvironment] [LispExpression] LispExpression |
               deriving (Eq, Ord)
 
 data LispExpression = LispSymbol String |
+                      LispKeyword String |
                       ReservedKeyword ReservedKeyword |
                       LispList [LispExpression] |
+                      LispMap (Map.Map LispExpression LispExpression) |
                       LispVector [LispExpression] |
                       LispNumber Integer |
                       --LispNumber LispNum |

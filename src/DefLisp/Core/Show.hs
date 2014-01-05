@@ -2,7 +2,7 @@ module Deflisp.Core.Show where
 
 import Deflisp.Core.Types
 import Debug.Trace
-
+import qualified Data.Map as Map
 
 instance Show LispFunk where
   show (LibraryFunction name _) = "library function: " ++ name
@@ -14,8 +14,10 @@ instance Show LispFunk where
 instance Show LispExpression where
   show (LispNumber n) = show n
   show (LispSymbol n) = n
+  show (LispKeyword n) = n
   show (ReservedKeyword n) = show n
   show (LispList n) = "(" ++ (unwords (map show n)) ++ ")"
+  show (LispMap n) = "(" ++ (unwords (map show (Map.toList n))) ++ ")"
   show (LispVector n) = "[" ++ (unwords (map show n)) ++ "]"
   show (LispString n) = n
   show (LispBool n) = show n

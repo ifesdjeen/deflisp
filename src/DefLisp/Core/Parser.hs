@@ -3,7 +3,9 @@ module Deflisp.Core.Parser (readExpression, readExpressions) where
 import Deflisp.Core.Types
 import Control.Monad.Error
 
+import qualified Data.Map as Map
 import Text.ParserCombinators.Parsec
+import Text.ParserCombinators.Parsec.Error
 import qualified Text.Parsec.Token as P
 import Text.Parsec.Language
 
@@ -18,6 +20,12 @@ parseString = do _ <- char '"'
                  x <- many (noneOf "\"")
                  _ <- char '"'
                  return $ LispString x
+
+parseKeyword :: Parser LispExpression
+parseKeyword = do _ <- char ':'
+                  x <- many alphaNum
+                  return $ LispString x
+
 
 parseNumber :: Parser LispExpression
 --parseNumber = liftM (LispNumber . read) $ many digit
@@ -65,6 +73,18 @@ parseSymbol = do
 parseList :: Parser LispExpression
 parseList = liftM LispList $ sepBy parseLispExpression whiteSpace
 
+parseMap :: Parser LispExpression
+parseMap = do
+  res <- sepBy parseLispExpression whiteSpace
+  return $ LispMap $ toMap res
+
+toMap :: [LispExpression] -> Map.Map LispExpression LispExpression
+toMap vals =
+  let num = quot (length vals) 2 in
+    Map.fromList $ take num [ (vals !! i, vals !! (i+1)) | i<- [0..], mod i 2 == 0 ]
+
+
+
 parseVector :: Parser LispExpression
 parseVector = liftM LispVector $ sepBy parseLispExpression whiteSpace
 
@@ -73,10 +93,12 @@ parseLispExpression = try parseReserved <|>
                       try quotedExpression <|>
                       parseTrue <|>
                       parseFalse <|>
+                      parseKeyword <|>
                       parseSymbol <|>
                       lexeme parseNumber <|>
                       parseString <|>
                       parens parseList <|>
+                      braces parseMap <|>
                       brackets parseVector  --  <|>
                       -- <?> "Expression"
 
@@ -91,7 +113,7 @@ readExpression input = case (parse parseLispExpression "lisp" input) of
 readExpressions :: String -> IO [LispExpression]
 readExpressions input =
   case (parse parseLispExpressions "lisp" input) of
-    Left err -> error "Can't parse"
+    Left err -> error $ "Can't parse" ++ (unwords (map messageString (errorMessages err)))
     Right x -> return x
 
 
@@ -108,6 +130,7 @@ lispDef
 
 lexer = P.makeTokenParser lispDef
 
+braces = P.braces lexer
 parens = P.parens lexer
 brackets = P.brackets lexer
 whiteSpace = P.whiteSpace lexer
