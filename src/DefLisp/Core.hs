@@ -27,6 +27,7 @@ fnFromString expression =
       LispFunction $ UserFunction [] bindings form
     _ -> error ""
 
+
 freshEnv :: LispEnvironment
 --freshEnv = Map.empty
 freshEnv =
@@ -45,11 +46,8 @@ freshEnv =
    ( (LispSymbol "conj"), (LispFunction $ LibraryFunction "conj" (builtInOp "conj")) ),
    ( (LispSymbol "cons"), (LispFunction $ LibraryFunction "cons" (builtInOp "cons")) ),
    ( (LispSymbol "list"), (LispFunction $ LibraryFunction "list" (builtInOp "list")) ),
-   ( (LispSymbol "vector"), (LispFunction $ LibraryFunction "vector" (builtInOp "vector")) ),
-   ( (LispSymbol "empty?"), (fnFromString "(fn [a] (= a ()))") ),
-   ( (LispSymbol "inc"), (fnFromString "(fn [b] (+ b 1))") ),
-   ( (LispSymbol "map"), (fnFromString "(fn [f coll] (if (empty? coll) (quote ()) (cons (f (first coll)) (map f (next coll)))))") ),
-   ( (LispSymbol "reduce"), (fnFromString "(fn [f coll acc] (if (empty? coll) acc (reduce f (next coll) (f acc (first coll)))))") )
+   ( (LispSymbol "vector"), (LispFunction $ LibraryFunction "vector" (builtInOp "vector")) )
+
   ]
 
 defineVar :: LispEnvironment -> LispExpression -> LispExpression -> LispEnvironment
@@ -150,12 +148,15 @@ eval _ val@(LispBool _) = return val
 
 eval _ LispNil = return LispNil
 
-eval _ (LispList [(LispSymbol "quote"), val]) | trace ("eval Quoting of " ++ show val)
-                                                False = undefined
+-- eval _ (LispList [(LispSymbol "quote"), val]) | trace ("eval Quoting of " ++ show val) False = undefined
 eval _ (LispList [(LispSymbol "quote"), val]) = return val
 
-eval closure (LispList [(LispSymbol "do"), form]) = eval closure form
+eval closure (LispList ((LispSymbol "do"): (x:xs))) =
+  step xs (eval closure x)
+  where step (x:more) res = step more (eval closure x)
+        step [] res = res
 
+-- eval closure (LispSymbol val) | trace ("eval Lookup of " ++ show val) False = undefined
 
 eval closure sym@(LispSymbol _) = do
   env <- get
@@ -183,6 +184,8 @@ eval closure (LispList[(ReservedKeyword FnKeyword),
                                    (bindings, _:(vararg: _)))),
                        form]) =
   return $ LispFunction $ VarArgFunction closure bindings vararg form
+
+
 
 -- Defines a variadic macros
 eval _ (LispList[(ReservedKeyword DefMacroKeyword),
@@ -288,8 +291,7 @@ eval closure (LispList
       let expanded = evalState (eval ([withVariadicBinding] ++ closure) form) env
       eval closure expanded
 
-
-eval _ (LispList x) | trace ("eval List: " ++ show x) False = undefined
+-- eval _ (LispList x) | trace ("eval List: " ++ show x) False = undefined
 eval closure val@(LispList x) =
   if (isPrimitive val)
   then return val
@@ -337,14 +339,13 @@ evalExpressions expressions =
 evalExpressionsIO :: [LispExpression] -> IO LispExpression
 evalExpressionsIO expressions = return $ evalExpressions expressions
 
+
 evalFile :: String -> IO LispExpression
 evalFile filename = do
   s <- readFile filename
   expressions <- readExpressions s
   res <- evalExpressionsIO expressions
   return res
-
-
 
 readPrompt :: String -> IO String
 readPrompt prompt = flushStr prompt >> getLine
