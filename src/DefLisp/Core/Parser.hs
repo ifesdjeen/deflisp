@@ -44,6 +44,13 @@ quotedExpression = do
   res <- try parseLispExpression
   return $ LispList $ [(LispSymbol "quote")] ++ [res]
 
+unquotedExpression :: Parser LispExpression
+unquotedExpression = do
+  _ <- char '~'
+  res <- try parseLispExpression
+  return $ LispList $ [(LispSymbol "unquote")] ++ [res]
+
+
 parseReserved :: Parser LispExpression
 parseReserved = do
   res <- try (string "defmacro") <|>
@@ -91,6 +98,7 @@ parseVector = liftM LispVector $ sepBy parseLispExpression whiteSpace
 parseLispExpression :: Parser LispExpression
 parseLispExpression = try parseReserved <|>
                       try quotedExpression <|>
+                      try unquotedExpression <|>
                       parseTrue <|>
                       parseFalse <|>
                       parseKeyword <|>

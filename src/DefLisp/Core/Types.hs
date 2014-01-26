@@ -1,7 +1,9 @@
+{-# LANGUAGE DeriveDataTypeable  #-}
 {-# LANGUAGE FlexibleInstances #-}
 
 module Deflisp.Core.Types where
 
+import Data.Generics
 import Control.DeepSeq
 import Control.Monad.State
 import qualified Data.Map as Map
@@ -12,30 +14,19 @@ import Control.Monad.Error
 type LispEnvironment = (Map.Map LispExpression LispExpression)
 type Context = State LispEnvironment LispExpression
 
-type ThrowsError = Either LispError
-
-data LispError = NumArgs Integer [LispExpression]
-               | TypeMismatch String LispExpression
-               | UnboundVar String String
-               | Default String
-
-instance Error LispError where
-    noMsg = Default "An error has occurred"
-    strMsg = Default
-
 data ReservedKeyword = DefKeyword |
                        FnKeyword |
                        NilKeyword |
                        DefMacroKeyword |
                        IfKeyword
-                     deriving (Show, Eq, Ord)
+                     deriving (Show, Eq, Ord, Typeable, Data)
 
 data LispFunk = UserFunction [LispEnvironment] [LispExpression] LispExpression |
                 VarArgFunction [LispEnvironment] [LispExpression] LispExpression LispExpression |
                 Macros [LispExpression] LispExpression |
                 VariadicMacros [LispExpression] LispExpression LispExpression |
                 LibraryFunction String ([LispExpression] -> LispExpression)
-              deriving (Eq, Ord)
+              deriving (Eq, Ord, Typeable, Data)
 
 data LispExpression = LispSymbol String |
                       LispKeyword String |
@@ -48,10 +39,14 @@ data LispExpression = LispSymbol String |
                       LispString String |
                       LispBool Bool |
                       LispFunction LispFunk |
+                      LispError String |
                       LispIO (IO ()) |
                       -- LispFunction [LispExpression] LispExpression |
                       LispNil
-                    deriving (Eq, Ord)
+                    deriving (Eq, Ord, Typeable, Data)
+
+err :: String -> LispExpression
+err msg = LispError msg
 
 isPrimitive :: LispExpression -> Bool
 isPrimitive (LispNumber _) = True
@@ -69,6 +64,7 @@ instance Eq ([LispExpression] -> LispExpression) where
 
 instance Ord ([LispExpression] -> LispExpression) where
   compare _ _ = EQ
+
 
 
 

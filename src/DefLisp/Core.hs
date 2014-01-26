@@ -2,6 +2,7 @@
 
 module Deflisp.Core where
 
+import Data.Generics
 -- import Data.List
 import Deflisp.Core.Types
 import Deflisp.Core.Show
@@ -16,39 +17,31 @@ import Debug.Trace
 
 
 import qualified Data.Map as Map
-type IOThrowsError = ErrorT LispError IO
 
-fromJust :: Maybe a -> a
+fromJust :: Maybe LispExpression -> LispExpression
 fromJust Nothing = error "Maybe.fromJust: got Nothing"
 fromJust (Just x) = x
 
-fnFromString :: String -> LispExpression
-fnFromString expression =
-  case (readExpression expression) of
-    (LispList[(ReservedKeyword FnKeyword), LispVector bindings, form]) ->
-      LispFunction $ UserFunction [] bindings form
-    _ -> error ""
-
-
 freshEnv :: LispEnvironment
---freshEnv = Map.empty
+
 freshEnv =
-  defineVars Map.empty
-  [( (LispSymbol "+"), (LispFunction $ LibraryFunction "+" (builtInOp "+")) ),
-   ( (LispSymbol "+"), (LispFunction $ LibraryFunction "+" (builtInOp "+")) ),
-   ( (LispSymbol "-"), (LispFunction $ LibraryFunction "-" (builtInOp "-")) ),
-   ( (LispSymbol "*"), (LispFunction $ LibraryFunction "*" (builtInOp "*")) ),
-   ( (LispSymbol "/"), (LispFunction $ LibraryFunction "/" (builtInOp "/")) ),
-   ( (LispSymbol "="), (LispFunction $ LibraryFunction "=" (builtInOp "=")) ),
-   ( (LispSymbol "print"), (LispFunction $ LibraryFunction "print" (builtInOp "print")) ),
-   ( (LispSymbol "first"), (LispFunction $ LibraryFunction "first" (builtInOp "first")) ),
-   ( (LispSymbol "count"), (LispFunction $ LibraryFunction "count" (builtInOp "count")) ),
-   ( (LispSymbol "next"), (LispFunction $ LibraryFunction "next" (builtInOp "next")) ),
-   ( (LispSymbol "last"), (LispFunction $ LibraryFunction "last" (builtInOp "last")) ),
-   ( (LispSymbol "conj"), (LispFunction $ LibraryFunction "conj" (builtInOp "conj")) ),
-   ( (LispSymbol "cons"), (LispFunction $ LibraryFunction "cons" (builtInOp "cons")) ),
-   ( (LispSymbol "list"), (LispFunction $ LibraryFunction "list" (builtInOp "list")) ),
-   ( (LispSymbol "vector"), (LispFunction $ LibraryFunction "vector" (builtInOp "vector")) )]
+ defineVars Map.empty
+  [mkFunction "+",
+   mkFunction "-",
+   mkFunction "*",
+   mkFunction "/",
+   mkFunction "=",
+   mkFunction "print",
+   mkFunction "first",
+   mkFunction "count",
+   mkFunction "next",
+   mkFunction "last",
+   mkFunction "conj",
+   mkFunction "cons",
+   -- mkFunction "list",
+   mkFunction "vector"]
+  where mkFunction name = ( (LispSymbol name),
+                            (LispFunction $ LibraryFunction name (builtInOp name)) );
 
 defineVar :: LispEnvironment -> LispExpression -> LispExpression -> LispEnvironment
 defineVar env symbol expr = Map.insert symbol expr env
@@ -140,6 +133,7 @@ eval :: [LispEnvironment] -> LispExpression -> State LispEnvironment LispExpress
 
 -- eval _ c | trace ("eval " ++ show c) False = undefined
 
+
 eval _ val@(ReservedKeyword _) = return val
 
 eval _ val@(LispString _) = return val
@@ -151,18 +145,16 @@ eval _ val@(LispBool _) = return val
 eval _ LispNil = return LispNil
 
 -- eval _ (LispList [(LispSymbol "quote"), val]) | trace ("eval Quoting of " ++ show val) False = undefined
-eval _ (LispList [(LispSymbol "quote"), val]) = return val
+eval closure (LispList [(LispSymbol "quote"), val]) =
+  do
+    env <- get
+    return $ everywhere (mkT (evalUnquoted env)) val
+    where -- unquoted = everywhere (mkT (evalUnquoted env)) val
+      evalUnquoted env (LispList [(LispSymbol "unquote"), val]) =
+        let (currentResult, newEnv) = runState (eval closure val) env in
+        currentResult
+      evalUnquoted _ a = a
 
--- eval closure (LispList ((LispSymbol "do"): forms)) =
-  -- do
-  --   env <- get
-  --   let evaled = map (\arg -> evalState (eval closure arg) env) forms
-  --   return $ deepseq evaled (last evaled)
-
--- eval closure (LispList ((LispSymbol "do"): (x:xs))) =
---   step xs (eval closure x)
---   where step (x:more) res = deepseq res (step more (eval closure x))
---         step [] res = deepseq res res
 
 eval closure (LispList ((LispSymbol "do"): forms)) =
   do
@@ -170,15 +162,6 @@ eval closure (LispList ((LispSymbol "do"): forms)) =
     let (res, newEnv) = evalMany env closure forms
     put $ newEnv
     return $ res
-  -- do
-  --   env <- get
-  --   let (res, newEnv) = step forms (LispNil, env)
-  --   put $ newEnv
-  --   return res
-  -- where step [] (lastResult, env) =
-  --         (lastResult, env)
-  --       step (current:more) (lastResult, env) =
-  --         deepseq lastResult (step more (runState (eval closure current) env))
 
 eval closure (LispList [(LispSymbol "eval"), form]) =
   do
@@ -186,7 +169,6 @@ eval closure (LispList [(LispSymbol "eval"), form]) =
     -- void $ defineVar env var (eval env closure form)
     let evaled = evalState (eval closure form) env
     eval closure evaled
-
 
 -- eval closure (LispSymbol val) | trace ("eval Lookup of " ++ show val) False = undefined
 
@@ -201,7 +183,7 @@ eval _ (LispList []) = return $ LispList []
 eval _ val@(LispVector _) = return val
 
 
-eval closure (LispList[(ReservedKeyword DefKeyword), (LispSymbol val), _]) | trace ("eval def  " ++ show val) False = undefined
+-- eval closure (LispList[(ReservedKeyword DefKeyword), (LispSymbol val), _]) | trace ("eval def  " ++ show val) False = undefined
 
 -- Defines a variable
 eval closure (LispList[(ReservedKeyword DefKeyword), var@(LispSymbol _), form]) =
@@ -253,6 +235,8 @@ eval closure (LispList[(ReservedKeyword IfKeyword), testExpression,
          else (eval closure falsyExpression)
   return res
 
+-- eval _ c | trace ("eval " ++ show c) False = undefined
+
 -- Evaluates a raw function, without binding
 eval closure (LispList
               ((LispFunction (UserFunction fnClosure bindings form)) :
@@ -261,11 +245,12 @@ eval closure (LispList
   | otherwise =
     do
       env <- get
-      -- let (evaled, newEnv) = evalAll env closure args
-      let evaled = map (\arg -> evalState (eval closure arg) env) args
+      let (evaled, newEnv) = evalAll env closure args
           fnArgs = zip bindings evaled
           fnEnv = defineVars freshEnv fnArgs
-      -- put $ newEnv
+          -- a = trace ("=== " ++ (unwords (map show fnArgs)) ++ " ===") False
+      put $ newEnv
+
       eval ([fnEnv] ++ fnClosure ++ closure) form
 
 -- Evaluates a vararg function
@@ -282,6 +267,15 @@ eval closure (LispList
           withVariadicBinding = defineVar fnEnv vararg (LispList (drop (length bindings) args))
       eval ([withVariadicBinding] ++ fnClosure ++ closure) form
 
+-- eval _ (LispList ((LispFunction (LibraryFunction name native)) : args)) | trace ("eval native fn `" ++ name ++ "` " ++ (unwords (map show args))) False = undefined
+
+-- Evaluates a library/native function
+eval closure (LispList
+              ((LispSymbol "list") :
+               args)) =
+  -- TODO: conut arguments of a library function
+  return $ LispList $ args
+
 -- Evaluates a library/native function
 eval closure (LispList
               ((LispFunction (LibraryFunction _ native)) :
@@ -289,13 +283,47 @@ eval closure (LispList
   -- TODO: conut arguments of a library function
   do
     env <- get
-    let evaled = map (\arg -> evalState (eval closure arg) env) args
+    let (evaled, newEnv) = evalAll env closure args
+    -- let evaled = map (\arg -> evalState (eval closure arg) env) args
+    put $ newEnv
     return $! native evaled
+
+-- eval _ (LispList (func@(LispSymbol _): args)) | trace ("eval symbol and form: " ++ show args) False = undefined
 
 eval closure (LispList (func@(LispSymbol _): args)) = do
   env <- get
   let funk = evalState (eval closure func) env
+      -- (evaled, newEnv) = evalAll env closure args
+  -- put $ newEnv
   eval closure (LispList ([funk] ++ args))
+
+-- eval _ (LispList
+--         ((LispFunction (VariadicMacros bindings vararg form)) :
+--          args)) | trace ("eval List: " ++ show bindings) False = undefined
+
+-- Evaluates a vararg function
+-- TODO: add function that would expand a macro
+eval closure (LispList
+              ((LispFunction (VariadicMacros bindings vararg form)) :
+               args))
+  | (length bindings) > (length args) = error "Incorrect number of arguments"
+  | otherwise =
+    do
+      let fnArgs = zip bindings args
+          fnEnv = defineVars freshEnv fnArgs
+          -- a = trace ("=== " ++ (unwords (map show fnArgs)) ++ " ===") False
+          withVariadicBinding =
+            -- seq a
+            (defineVar fnEnv vararg (LispList (drop (length bindings) args)))
+
+      -- eval ([withVariadicBinding] ++ closure) form
+      env <- get
+      -- TODO: Figure out what's going on here.
+      let (expanded, newEnv) = runState (eval ([withVariadicBinding] ++ closure) form) env
+      put $ newEnv
+
+      -- seq (trace ("=== " ++ (show expanded) ++ " ===") False)
+      eval ([withVariadicBinding] ++ closure) expanded
 
 -- Evaluates a raw macros, without binding
 eval closure (LispList
@@ -310,26 +338,12 @@ eval closure (LispList
       env <- get
       let (expanded, newEnv) = runState (eval ([macroEnv] ++ closure) form) env
       put $ newEnv
-      eval closure expanded
-
--- Evaluates a vararg function
--- TODO: add function that would expand a macro
-eval closure (LispList
-              ((LispFunction (VariadicMacros bindings vararg form)) :
-               args))
-  | (length bindings) > (length args) = error "Incorrect number of arguments"
-  | otherwise =
-    do
-      let fnArgs = zip bindings args
-          fnEnv = defineVars freshEnv fnArgs
-          withVariadicBinding = defineVar fnEnv vararg (LispList (drop (length bindings) args))
-      -- eval ([withVariadicBinding] ++ closure) form
-      env <- get
-      let (expanded, newEnv) = runState (eval ([withVariadicBinding] ++ closure) form) env
-      put $ newEnv
-      eval closure expanded
+      -- seq
+      --   (trace ("=== " ++ (show expanded) ++ " ===") False)
+      eval ([macroEnv] ++ closure) expanded
 
 -- eval _ (LispList x) | trace ("eval List: " ++ show x) False = undefined
+
 eval closure val@(LispList x) =
   if (isPrimitive val)
   then return val
@@ -339,11 +353,6 @@ eval closure val@(LispList x) =
       let (res, newEnv) = evalMany env closure x
       put $ newEnv
       return $ res
-
--- do
-    --   env <- get
-    --   let evaled = LispList $ map (\arg -> evalState (eval closure arg) env) x
-    --   eval closure evaled
 
 eval _ form = error $ "Don't know how to eval :`" ++ (show form)
 
@@ -425,4 +434,20 @@ evalAll env closure forms =
           (lastResult, env)
         step (current:more) (lastResult, env) =
           let (currentResult, newEnv) = runState (eval closure current) env in
-          step more ([deepseq currentResult currentResult] ++ lastResult, newEnv)
+          step more (lastResult ++ [deepseq currentResult currentResult], newEnv)
+
+
+extractSymbols :: LispExpression -> [LispExpression]
+extractSymbols expr =
+  everything (++)  ([] `mkQ` extract) expr
+  where extract val@(LispSymbol symbol) = [val]
+        extract _ = []
+
+-- eval closure (LispList[(ReservedKeyword DefKeyword), var@(LispSymbol _), form]) =-
+extractUnquote :: LispExpression -> [LispExpression]
+extractUnquote expr =
+  everything (++)  ([] `mkQ` extract) expr
+  where extract (LispList [(LispSymbol "unquote"), val@(LispList _)]) = [val]
+        extract _ = []
+
+-- evalFile "lib/deflisp/core.clj"
