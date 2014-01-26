@@ -322,8 +322,8 @@ eval closure (LispList
       let (expanded, newEnv) = runState (eval ([withVariadicBinding] ++ closure) form) env
       put $ newEnv
 
-      -- seq (trace ("=== " ++ (show expanded) ++ " ===") False)
-      eval ([withVariadicBinding] ++ closure) expanded
+      seq (trace ("=== " ++ (show expanded) ++ " ===") False)
+        eval ([withVariadicBinding] ++ closure) expanded
 
 -- Evaluates a raw macros, without binding
 eval closure (LispList
@@ -338,8 +338,7 @@ eval closure (LispList
       env <- get
       let (expanded, newEnv) = runState (eval ([macroEnv] ++ closure) form) env
       put $ newEnv
-      -- seq
-      --   (trace ("=== " ++ (show expanded) ++ " ===") False)
+      --seq (trace ("=== " ++ (show expanded) ++ " ===") False)
       eval ([macroEnv] ++ closure) expanded
 
 -- eval _ (LispList x) | trace ("eval List: " ++ show x) False = undefined

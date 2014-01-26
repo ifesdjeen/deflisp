@@ -50,6 +50,12 @@ unquotedExpression = do
   res <- try parseLispExpression
   return $ LispList $ [(LispSymbol "unquote")] ++ [res]
 
+unquoteSplicedExpression :: Parser LispExpression
+unquoteSplicedExpression = do
+  _ <- char '~@'
+  res <- try parseLispExpression
+  return $ LispList $ [(LispSymbol "unquote-splice")] ++ [res]
+
 
 parseReserved :: Parser LispExpression
 parseReserved = do
@@ -99,6 +105,7 @@ parseLispExpression :: Parser LispExpression
 parseLispExpression = try parseReserved <|>
                       try quotedExpression <|>
                       try unquotedExpression <|>
+                      try unquotSplicedExpression <|>
                       parseTrue <|>
                       parseFalse <|>
                       parseKeyword <|>
