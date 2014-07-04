@@ -1,1 +1,1 @@
-(haskell-program-name "cabal repl")
+;; (haskell-program-name "cabal repl")

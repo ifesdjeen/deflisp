@@ -89,6 +89,14 @@ Try to avoid using it.
 cabal configure --enable-tests && cabal build && cabal test
 ```
 
+## Emacs Development
+
+Usually everything should work just fine, except for you have to set a working directory sometimes:
+
+```
+:set -iFULL_PATH_TO_deflisp/src
+```
+
 ## Contributing
 
 Copyright (c) Alex Petrov

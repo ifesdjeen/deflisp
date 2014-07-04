@@ -12,7 +12,7 @@ import System.IO
 import System.IO.Unsafe (unsafePerformIO)
 import Control.DeepSeq
 import Control.Monad.State
-import Control.Monad.Error
+-- import Control.Monad.Error
 import Debug.Trace
 
 
@@ -442,6 +442,7 @@ extractSymbols expr =
   where extract val@(LispSymbol symbol) = [val]
         extract _ = []
 
+
 -- eval closure (LispList[(ReservedKeyword DefKeyword), var@(LispSymbol _), form]) =-
 extractUnquote :: LispExpression -> [LispExpression]
 extractUnquote expr =
@@ -449,4 +450,7 @@ extractUnquote expr =
   where extract (LispList [(LispSymbol "unquote"), val@(LispList _)]) = [val]
         extract _ = []
 
+---asldkjasldkjaasd
 -- evalFile "lib/deflisp/core.clj"
+ -- a :: Int -> Int -> Int
+-- a x y = x + y
