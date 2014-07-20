@@ -1,4 +1,5 @@
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Deflisp.Core where
 
@@ -129,7 +130,7 @@ builtInOp "cons" [el, list] = cons el list
 
 builtInOp _ _ = error "Builtin operation is not known"
 
-eval :: [LispEnvironment] -> LispExpression -> State LispEnvironment LispExpression
+eval :: MonadState LispEnvironment m => [LispEnvironment] -> LispExpression -> m LispExpression
 
 -- eval _ c | trace ("eval " ++ show c) False = undefined
 
