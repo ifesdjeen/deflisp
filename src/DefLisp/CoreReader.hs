@@ -15,6 +15,7 @@ import Control.DeepSeq
 import Control.Monad (forM_)
 import Control.Monad.Writer
 import Control.Monad.Reader
+import Control.Monad.Identity
 -- import Control.Monad.Error
 import Debug.Trace
 
@@ -159,8 +160,55 @@ definitionPass expressions = do
   forM_ expressions $ \expr -> do
      tryDefineExpression expr
 
+buildEnvironment :: [(LispExpression, LispExpression)] -> LispEnvironment
+buildEnvironment expressions = defineVars freshEnv expressions
+
+eval :: MonadReader LispEnvironment m => LispExpression -> m LispExpression
+
+eval val@(ReservedKeyword _) = return val
+eval val@(LispString _) = return val
+eval val@(LispNumber _) = return val
+eval val@(LispBool _) = return val
+eval LispNil = return LispNil
+
+eval sym@(LispSymbol _) = do
+  env <- ask
+  return $ fromJust (findVar env sym)
+
+eval (LispList
+      ((LispFunction (LibraryFunction _ native)) :
+       args)) =
+  do
+    env <- ask
+    evaled <- mapM eval args
+    return $! native evaled
+
+eval (LispList (func@(LispSymbol _): args)) = do
+  env <- ask
+  funk <- eval func
+  --- let funk = runIdentity $ (runReaderT $ eval func) env
+  res <- eval (LispList ([funk] ++ args))
+  --- Why can't i just write return eval (LispList ([funk] ++ args)) and have to write that intermediate thing?
+  return res
+
+eval (LispList ((LispFunction (UserFunction fnClosure bindings form)) : args))
+  | (length bindings) /= (length args) = error "Incorrect number of arguments"
+  | otherwise = do
+    env <- ask
+    evaled <- mapM eval args
+    res <- local (\x -> defineVars x (zip bindings evaled)) (eval form)
+    return res
+
 -- definitionPass [LispList [(ReservedKeyword DefKeyword), (LispSymbol "asd"), (LispNumber 1)], LispList [(ReservedKeyword DefKeyword), (LispSymbol "bsd"), (LispNumber 2)]]
 --- execution only through main function, no top-level expressions
 
+-- eval freshEnv [LispList [(LispSymbol "+"), (LispNumber 1), (LispNumber 1)]]
 
 -- [LispList [(ReservedKeyword DefKeyword), (LispSymbol "asd"), (LispNumber 1)]]
+
+
+
+--- (runReaderT $ eval (LispNumber 1) ) freshEnv
+
+--- (runReaderT $ eval (LispSymbol "+") ) freshEnv
+--- (runReaderT $ eval (LispList [(LispSymbol "+"), (LispNumber 1), (LispNumber 1)]) ) freshEnv
