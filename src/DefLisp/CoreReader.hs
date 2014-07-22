@@ -150,18 +150,36 @@ extractUnquote expr =
   where extract (LispList [(LispSymbol "unquote"), val@(LispList _)]) = [val]
         extract _ = []
 
-tryDefineExpression :: LispExpression -> Writer [(LispExpression, LispExpression)] ()
-tryDefineExpression (LispList[(ReservedKeyword DefKeyword), var@(LispSymbol _), form]) = do
+defineExpression :: LispExpression -> Writer [(LispExpression, LispExpression)] ()
+defineExpression (LispList[(ReservedKeyword DefKeyword), var@(LispSymbol _), form]) = do
   tell [(var, form)]
   return ()
 
 definitionPass :: [LispExpression] -> Writer [(LispExpression, LispExpression)] ()
 definitionPass expressions = do
   forM_ expressions $ \expr -> do
-     tryDefineExpression expr
+     defineExpression expr
+
+-- expandExpression :: LispEnvironment -> LispExpression -> LispExpression
+-- expandExpression env exp =
+
+expansionPass' :: MonadReader LispEnvironment m => [(LispExpression, LispExpression)] -> m [(LispExpression, LispExpression)]
+expansionPass' expressions = do
+  mapM eval' expressions
+
+expansionPass :: [(LispExpression, LispExpression)] -> LispEnvironment
+expansionPass expressions = defineVars env expanded
+                            where
+                              env = defineVars freshEnv expressions
+                              expanded = runIdentity $ (runReaderT $ expansionPass' expressions) env
 
 buildEnvironment :: [(LispExpression, LispExpression)] -> LispEnvironment
 buildEnvironment expressions = defineVars freshEnv expressions
+
+eval' :: MonadReader LispEnvironment m => (LispExpression, LispExpression) -> m (LispExpression, LispExpression)
+eval' (x,y) = do
+  y' <- eval y
+  return (x, y')
 
 eval :: MonadReader LispEnvironment m => LispExpression -> m LispExpression
 
@@ -183,6 +201,7 @@ eval (LispList
     evaled <- mapM eval args
     return $! native evaled
 
+-- Eval Function
 eval (LispList (func@(LispSymbol _): args)) = do
   env <- ask
   funk <- eval func
@@ -191,6 +210,7 @@ eval (LispList (func@(LispSymbol _): args)) = do
   --- Why can't i just write return eval (LispList ([funk] ++ args)) and have to write that intermediate thing?
   return res
 
+
 eval (LispList ((LispFunction (UserFunction fnClosure bindings form)) : args))
   | (length bindings) /= (length args) = error "Incorrect number of arguments"
   | otherwise = do
@@ -198,6 +218,7 @@ eval (LispList ((LispFunction (UserFunction fnClosure bindings form)) : args))
     evaled <- mapM eval args
     res <- local (\x -> defineVars x (zip bindings evaled)) (eval form)
     return res
+
 
 -- definitionPass [LispList [(ReservedKeyword DefKeyword), (LispSymbol "asd"), (LispNumber 1)], LispList [(ReservedKeyword DefKeyword), (LispSymbol "bsd"), (LispNumber 2)]]
 --- execution only through main function, no top-level expressions
@@ -212,3 +233,6 @@ eval (LispList ((LispFunction (UserFunction fnClosure bindings form)) : args))
 
 --- (runReaderT $ eval (LispSymbol "+") ) freshEnv
 --- (runReaderT $ eval (LispList [(LispSymbol "+"), (LispNumber 1), (LispNumber 1)]) ) freshEnv
+
+
+--- expansionPass [(LispSymbol "abcd", LispNumber 1), (LispSymbol "efgh", (LispList [(LispSymbol "+"), LispNumber 1, LispSymbol "abcd"]))]
